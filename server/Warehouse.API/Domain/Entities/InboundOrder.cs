@@ -13,6 +13,8 @@ public class InboundOrder : BaseEntity, ITenantEntity
 
 public class InboundOrderItem : BaseEntity
 {
+    public InboundOrder InboundOrder { get; set; } = null!; 
+    
     public Guid InboundOrderId { get; set; }
     public Guid ProductId { get; set; }
     public Product Product { get; set; } = null!;
