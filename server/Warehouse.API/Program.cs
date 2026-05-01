@@ -39,6 +39,8 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IInboundService, InboundService>();
 builder.Services.AddScoped<IOutboundService, OutboundService>();
+builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IStructureService, StructureService>();
 
 var app = builder.Build();
 
