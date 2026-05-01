@@ -42,6 +42,7 @@ builder.Services.AddScoped<IOutboundService, OutboundService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IStructureService, StructureService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IInboundOrderService, InboundOrderService>();
 
 var app = builder.Build();
 
