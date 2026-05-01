@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Warehouse.API.Infrastructure.Data;
@@ -11,9 +12,11 @@ using Warehouse.API.Infrastructure.Data;
 namespace Warehouse.API.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260423120916_FixInboundOrderNavigation")]
+    partial class FixInboundOrderNavigation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -100,9 +103,6 @@ namespace Warehouse.API.Infrastructure.Migrations
                     b.Property<decimal>("Quantity")
                         .HasColumnType("numeric");
 
-                    b.Property<decimal>("ReceivedQuantity")
-                        .HasColumnType("numeric");
-
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -154,55 +154,6 @@ namespace Warehouse.API.Infrastructure.Migrations
                     b.ToTable("InventoryBalances");
                 });
 
-            modelBuilder.Entity("Warehouse.API.Domain.Entities.InventoryTransaction", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("BatchId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("FromLocationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Quantity")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("Reference")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ToLocationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BatchId");
-
-                    b.HasIndex("FromLocationId");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("ToLocationId");
-
-                    b.ToTable("InventoryTransactions");
-                });
-
             modelBuilder.Entity("Warehouse.API.Domain.Entities.Location", b =>
                 {
                     b.Property<Guid>("Id")
@@ -236,70 +187,6 @@ namespace Warehouse.API.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Locations");
-                });
-
-            modelBuilder.Entity("Warehouse.API.Domain.Entities.OutboundOrder", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CustomerName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("OrderNumber")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("OutboundOrders");
-                });
-
-            modelBuilder.Entity("Warehouse.API.Domain.Entities.OutboundOrderItem", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("OutboundOrderId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Quantity")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal>("ShippedQuantity")
-                        .HasColumnType("numeric");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OutboundOrderId");
-
-                    b.HasIndex("ProductId");
-
-                    b.ToTable("OutboundOrderItems");
                 });
 
             modelBuilder.Entity("Warehouse.API.Domain.Entities.Product", b =>
@@ -505,35 +392,6 @@ namespace Warehouse.API.Infrastructure.Migrations
                     b.Navigation("Product");
                 });
 
-            modelBuilder.Entity("Warehouse.API.Domain.Entities.InventoryTransaction", b =>
-                {
-                    b.HasOne("Warehouse.API.Domain.Entities.Batch", "Batch")
-                        .WithMany()
-                        .HasForeignKey("BatchId");
-
-                    b.HasOne("Warehouse.API.Domain.Entities.Location", "FromLocation")
-                        .WithMany()
-                        .HasForeignKey("FromLocationId");
-
-                    b.HasOne("Warehouse.API.Domain.Entities.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Warehouse.API.Domain.Entities.Location", "ToLocation")
-                        .WithMany()
-                        .HasForeignKey("ToLocationId");
-
-                    b.Navigation("Batch");
-
-                    b.Navigation("FromLocation");
-
-                    b.Navigation("Product");
-
-                    b.Navigation("ToLocation");
-                });
-
             modelBuilder.Entity("Warehouse.API.Domain.Entities.Location", b =>
                 {
                     b.HasOne("Warehouse.API.Domain.Entities.Zone", "Zone")
@@ -543,25 +401,6 @@ namespace Warehouse.API.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Zone");
-                });
-
-            modelBuilder.Entity("Warehouse.API.Domain.Entities.OutboundOrderItem", b =>
-                {
-                    b.HasOne("Warehouse.API.Domain.Entities.OutboundOrder", "OutboundOrder")
-                        .WithMany("Items")
-                        .HasForeignKey("OutboundOrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Warehouse.API.Domain.Entities.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("OutboundOrder");
-
-                    b.Navigation("Product");
                 });
 
             modelBuilder.Entity("Warehouse.API.Domain.Entities.Product", b =>
@@ -596,11 +435,6 @@ namespace Warehouse.API.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("Warehouse.API.Domain.Entities.InboundOrder", b =>
-                {
-                    b.Navigation("Items");
-                });
-
-            modelBuilder.Entity("Warehouse.API.Domain.Entities.OutboundOrder", b =>
                 {
                     b.Navigation("Items");
                 });
