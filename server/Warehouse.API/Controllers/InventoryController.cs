@@ -32,6 +32,23 @@ public class InventoryController : ControllerBase
         return Ok(new { Message = "Товар успішно переміщено" });
     }
     
+    [HttpGet("product-locations/{productId}")]
+    public async Task<IActionResult> GetProductLocations(Guid productId)
+    {
+        var tenant = await _context.Tenants.FirstOrDefaultAsync();
+        if (tenant == null) return BadRequest("Tenant not found");
+
+        try
+        {
+            var locations = await _inventoryService.GetAvailableLocationsForProductAsync(tenant.Id, productId);
+            return Ok(locations);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+    
     [HttpGet("stock/{warehouseId}")]
     public async Task<IActionResult> GetStock(Guid warehouseId)
     {
@@ -39,8 +56,7 @@ public class InventoryController : ControllerBase
         if (tenant == null) return BadRequest("Tenant not found");
 
         var stock = await _inventoryService.GetWarehouseStockAsync(tenant.Id, warehouseId);
-    
-        // Формуємо красиву відповідь для фронтенда
+        
         var result = stock.Select(s => new {
             ProductName = s.Product?.Name,
             SKU = s.Product?.SKU,
@@ -51,5 +67,22 @@ public class InventoryController : ControllerBase
         });
 
         return Ok(result);
+    }
+    
+    [HttpPost("adjust")]
+    public async Task<IActionResult> Adjust([FromBody] AdjustmentRequest request)
+    {
+        var tenant = await _context.Tenants.FirstOrDefaultAsync();
+        if (tenant == null) return BadRequest("Tenant not found");
+
+        try
+        {
+            await _inventoryService.AdjustStockAsync(tenant.Id, request);
+            return Ok("Залишки успішно скориговано");
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 }

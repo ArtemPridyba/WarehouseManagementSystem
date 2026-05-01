@@ -2,7 +2,7 @@
 using Warehouse.API.Application.DTOs.Inbound;
 using Warehouse.API.Application.Interfaces;
 using Warehouse.API.Domain.Entities;
-using Warehouse.API.Domain.Enums; // Додано для TransactionType
+using Warehouse.API.Domain.Enums;
 using Warehouse.API.Infrastructure.Data;
 
 namespace Warehouse.API.Application.Services;
@@ -18,20 +18,23 @@ public class InboundService : IInboundService
 
     public async Task<bool> ReceiveProductAsync(Guid tenantId, ReceiveProductRequest request)
     {
-        // Починаємо транзакцію: або все зберігається, або нічого
         using var transaction = await _context.Database.BeginTransactionAsync();
 
         try
         {
-            // 1. Перевіряємо, чи існує такий рядок у замовленні на прихід
             var orderItem = await _context.InboundOrderItems
+                .Include(oi => oi.InboundOrder)
                 .FirstOrDefaultAsync(oi => oi.InboundOrderId == request.InboundOrderId && 
                                           oi.ProductId == request.ProductId);
 
             if (orderItem == null) 
-                throw new Exception("Товар не знайдено в плані закупівлі (Inbound Order)!");
+                throw new Exception("Товар не знайдено в плані закупівлі!");
 
-            // 2. Обробка партії (Batch)
+            if (orderItem.ReceivedQuantity + request.Quantity > orderItem.Quantity)
+            {
+                throw new Exception($"Переприймання заборонено! Очікується: {orderItem.Quantity - orderItem.ReceivedQuantity}, а ви намагаєтесь прийняти: {request.Quantity}");
+            }
+
             Guid? batchId = null;
             if (!string.IsNullOrEmpty(request.BatchNumber))
             {
@@ -50,13 +53,11 @@ public class InboundService : IInboundService
                         ExpirationDate = request.ExpirationDate
                     };
                     _context.Batches.Add(batch);
-                    // Зберігаємо, щоб отримати ID для подальших зв'язків
-                    await _context.SaveChangesAsync();
+                    await _context.SaveChangesAsync(); 
                 }
                 batchId = batch.Id;
             }
 
-            // 3. Оновлюємо/Створюємо залишок (Inventory Balance)
             var balance = await _context.InventoryBalances
                 .FirstOrDefaultAsync(b => b.TenantId == tenantId &&
                                          b.LocationId == request.LocationId &&
@@ -80,35 +81,45 @@ public class InboundService : IInboundService
                 balance.Quantity += request.Quantity;
             }
 
-            // 4. Створюємо запис про рух товару (Transaction History)
-            // Це дозволить побудувати звіт "Історія складських операцій"
+            orderItem.ReceivedQuantity += request.Quantity;
+
             var movement = new InventoryTransaction
             {
                 TenantId = tenantId,
                 ProductId = request.ProductId,
-                FromLocationId = null, // Прихід — товар прийшов ззовні системи
+                FromLocationId = null,
                 ToLocationId = request.LocationId,
                 BatchId = batchId,
                 Quantity = request.Quantity,
                 Type = TransactionType.Inbound,
                 CreatedAt = DateTime.UtcNow,
-                Reference = $"Order: {request.InboundOrderId}" 
+                Reference = $"Inbound Order: {orderItem.InboundOrder.OrderNumber}" 
             };
             _context.InventoryTransactions.Add(movement);
 
-            // 5. Фінальне збереження всіх змін
+            var allItemsInOrder = await _context.InboundOrderItems
+                .Where(oi => oi.InboundOrderId == request.InboundOrderId)
+                .ToListAsync();
+
+            var allReceived = allItemsInOrder.All(oi => oi.ReceivedQuantity == oi.Quantity);
+
+            if (allReceived)
+            {
+                orderItem.InboundOrder.Status = OrderStatus.Completed;
+            }
+            else
+            {
+                orderItem.InboundOrder.Status = OrderStatus.InProgress;
+            }
+
             await _context.SaveChangesAsync();
-            
-            // Підтверджуємо успішне завершення всіх кроків
             await transaction.CommitAsync();
             return true;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            // Якщо сталася будь-яка помилка - скасовуємо всі зміни в БД
             await transaction.RollbackAsync();
-            // Тут можна додати логування помилки (logger.LogError)
-            return false;
+            throw;
         }
     }
 }

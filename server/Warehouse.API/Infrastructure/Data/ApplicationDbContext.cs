@@ -18,6 +18,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<InboundOrder> InboundOrders => Set<InboundOrder>();
     public DbSet<InboundOrderItem> InboundOrderItems => Set<InboundOrderItem>();
     public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
+    public DbSet<OutboundOrder> OutboundOrders => Set<OutboundOrder>();
+    public DbSet<OutboundOrderItem> OutboundOrderItems => Set<OutboundOrderItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

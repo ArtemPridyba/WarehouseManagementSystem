@@ -2,14 +2,21 @@
 
 namespace Warehouse.API.Application.DTOs.Inventory;
 
-public record TransferRequest(
-    [property: Required] Guid ProductId,
-    [property: Required] Guid FromLocationId,
-    [property: Required] Guid ToLocationId,
-    
-    Guid? BatchId,
+public record TransferRequest
+{
+    [Required]
+    public Guid ProductId { get; init; }
 
-    [property: Required]
-    [property: Range(0.001, 999999, ErrorMessage = "Кількість має бути більшою за 0")]
-    decimal Quantity
-);
+    [Required]
+    public Guid FromLocationId { get; init; }
+
+    [Required]
+    public Guid ToLocationId { get; init; }
+
+    // BatchId може бути null
+    public Guid? BatchId { get; init; }
+
+    [Required]
+    [Range(0.001, 999999, ErrorMessage = "Quantity must be greater than 0")]
+    public decimal Quantity { get; init; }
+}

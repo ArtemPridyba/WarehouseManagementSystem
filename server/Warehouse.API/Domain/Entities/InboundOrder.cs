@@ -19,4 +19,5 @@ public class InboundOrderItem : BaseEntity
     public Guid ProductId { get; set; }
     public Product Product { get; set; } = null!;
     public decimal Quantity { get; set; }
+    public decimal ReceivedQuantity { get; set; }
 }

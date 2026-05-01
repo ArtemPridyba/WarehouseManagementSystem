@@ -2,6 +2,8 @@
 using Warehouse.API.Application.DTOs.Inbound;
 using Warehouse.API.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Warehouse.API.Domain.Entities;
+using Warehouse.API.Domain.Enums;
 using Warehouse.API.Infrastructure.Data;
 
 namespace Warehouse.API.Controllers;
@@ -25,9 +27,24 @@ public class InboundController : ControllerBase
         var tenant = await _context.Tenants.FirstOrDefaultAsync();
         if (tenant == null) return BadRequest("Tenant not found");
 
-        var result = await _inboundService.ReceiveProductAsync(tenant.Id, request);
+        try 
+        {
+            var result = await _inboundService.ReceiveProductAsync(tenant.Id, request);
+            return Ok("Товар успішно прийнято на склад");
+        }
+        catch (Exception ex) 
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+    
+    [HttpGet("active")]
+    public async Task<ActionResult<IEnumerable<InboundOrder>>> GetActiveOrders()
+    {
+        var tenant = await _context.Tenants.FirstOrDefaultAsync();
         
-        if (result) return Ok("Товар успішно прийнято на склад");
-        return BadRequest("Помилка при прийманні");
+        return await _context.InboundOrders
+            .Where(o => o.TenantId == tenant.Id && o.Status != OrderStatus.Completed)
+            .ToListAsync();
     }
 }
