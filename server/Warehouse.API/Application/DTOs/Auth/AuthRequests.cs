@@ -22,3 +22,11 @@ public record AuthResponse(
     Guid TenantId,
     string FullName
 );
+
+public record CreateEmployeeRequest(
+    [Required] string FirstName,
+    [Required] string LastName,
+    [Required] [EmailAddress] string Email,
+    [Required] [MinLength(6)] string Password,
+    [Required] string Role
+);

@@ -105,4 +105,26 @@ public class AuthService : IAuthService
             ($"{user.FirstName} {user.LastName}")
         );
     }
+    
+    public async Task<bool> RegisterEmployeeAsync(Guid tenantId, CreateEmployeeRequest request)
+    {
+        var user = new AppUser
+        {
+            UserName = request.Email,
+            Email = request.Email,
+            FirstName = request.FirstName,
+            LastName = request.LastName,
+            TenantId = tenantId 
+        };
+
+        var result = await _userManager.CreateAsync(user, request.Password);
+    
+        if (result.Succeeded)
+        {
+            await _userManager.AddToRoleAsync(user, request.Role);
+            return true;
+        }
+
+        throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
+    }
 }

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Warehouse.API.Application.DTOs.Auth;
 using Warehouse.API.Application.Interfaces;
 
@@ -40,6 +41,26 @@ public class AuthController : ControllerBase
         catch (Exception ex)
         {
             return Unauthorized(ex.Message);
+        }
+    }
+    
+    [Authorize] 
+    [HttpPost("add-employee")]
+    public async Task<IActionResult> AddEmployee([FromBody] CreateEmployeeRequest request)
+    {
+        var tenantIdClaim = User.FindFirst("TenantId")?.Value;
+        if (string.IsNullOrEmpty(tenantIdClaim)) return Unauthorized();
+    
+        var tenantId = Guid.Parse(tenantIdClaim);
+
+        try
+        {
+            await _authService.RegisterEmployeeAsync(tenantId, request);
+            return Ok("Співробітника успішно додано до вашої компанії");
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ex.Message);
         }
     }
 }
