@@ -5,9 +5,12 @@ using Microsoft.AspNetCore.Identity;
 using Warehouse.API.Application.Interfaces;
 using Warehouse.API.Application.Services;
 using Warehouse.API.Domain.Entities;
+using Warehouse.API.Domain.Enums;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Warehouse.API.Infrastructure.Services;
+using Warehouse.API.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -64,6 +67,9 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
+
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IInboundService, InboundService>();
 builder.Services.AddScoped<IOutboundService, OutboundService>();
@@ -91,8 +97,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("AllowAll");
+
 app.UseAuthentication();
+app.UseMiddleware<TenantResolverMiddleware>();
 app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();
