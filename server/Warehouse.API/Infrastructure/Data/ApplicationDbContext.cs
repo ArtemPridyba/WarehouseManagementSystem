@@ -1,9 +1,11 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Warehouse.API.Domain.Entities;
 
 namespace Warehouse.API.Infrastructure.Data;
 
-public class ApplicationDbContext : DbContext
+public class ApplicationDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
 
@@ -24,9 +26,18 @@ public class ApplicationDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        
         modelBuilder.HasPostgresExtension("uuid-ossp");
 
-        // Індекси для швидкодії та унікальності
+        modelBuilder.Entity<AppUser>().ToTable("Users");
+        modelBuilder.Entity<IdentityRole<Guid>>().ToTable("Roles");
+
+        modelBuilder.Entity<AppUser>()
+            .HasOne(u => u.Tenant)
+            .WithMany()
+            .HasForeignKey(u => u.TenantId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         modelBuilder.Entity<Product>().HasIndex(p => new { p.TenantId, p.SKU }).IsUnique();
         modelBuilder.Entity<Location>().HasIndex(l => new { l.TenantId, l.Code }).IsUnique();
         modelBuilder.Entity<InventoryBalance>().HasIndex(b => new { b.LocationId, b.ProductId, b.BatchId }).IsUnique();
