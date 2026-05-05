@@ -35,9 +35,9 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, IdentityRole<Guid
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        
+    
         modelBuilder.HasPostgresExtension("uuid-ossp");
-
+        
         modelBuilder.Entity<AppUser>().ToTable("Users");
         modelBuilder.Entity<IdentityRole<Guid>>().ToTable("Roles");
 
@@ -46,23 +46,21 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, IdentityRole<Guid
             .WithMany()
             .HasForeignKey(u => u.TenantId)
             .OnDelete(DeleteBehavior.Restrict);
-
+        
         modelBuilder.Entity<Product>().HasIndex(p => new { p.TenantId, p.SKU }).IsUnique();
         modelBuilder.Entity<Location>().HasIndex(l => new { l.TenantId, l.Code }).IsUnique();
         modelBuilder.Entity<InventoryBalance>().HasIndex(b => new { b.LocationId, b.ProductId, b.BatchId }).IsUnique();
 
-        var tenantId = _userContext.TenantId ?? Guid.Empty;
-
-        modelBuilder.Entity<Product>().HasQueryFilter(e => e.TenantId == tenantId);
-        modelBuilder.Entity<ProductCategory>().HasQueryFilter(e => e.TenantId == tenantId);
-        modelBuilder.Entity<Domain.Entities.Warehouse>().HasQueryFilter(e => e.TenantId == tenantId);
-        modelBuilder.Entity<Zone>().HasQueryFilter(e => e.TenantId == tenantId);
-        modelBuilder.Entity<Location>().HasQueryFilter(e => e.TenantId == tenantId);
-        modelBuilder.Entity<Batch>().HasQueryFilter(e => e.TenantId == tenantId);
-        modelBuilder.Entity<InventoryBalance>().HasQueryFilter(e => e.TenantId == tenantId);
-        modelBuilder.Entity<InventoryTransaction>().HasQueryFilter(e => e.TenantId == tenantId);
-        modelBuilder.Entity<InboundOrder>().HasQueryFilter(e => e.TenantId == tenantId);
-        modelBuilder.Entity<OutboundOrder>().HasQueryFilter(e => e.TenantId == tenantId);
+        modelBuilder.Entity<Product>().HasQueryFilter(e => e.TenantId == _userContext.TenantId);
+        modelBuilder.Entity<ProductCategory>().HasQueryFilter(e => e.TenantId == _userContext.TenantId);
+        modelBuilder.Entity<Domain.Entities.Warehouse>().HasQueryFilter(e => e.TenantId == _userContext.TenantId);
+        modelBuilder.Entity<Zone>().HasQueryFilter(e => e.TenantId == _userContext.TenantId);
+        modelBuilder.Entity<Location>().HasQueryFilter(e => e.TenantId == _userContext.TenantId);
+        modelBuilder.Entity<Batch>().HasQueryFilter(e => e.TenantId == _userContext.TenantId);
+        modelBuilder.Entity<InventoryBalance>().HasQueryFilter(e => e.TenantId == _userContext.TenantId);
+        modelBuilder.Entity<InventoryTransaction>().HasQueryFilter(e => e.TenantId == _userContext.TenantId);
+        modelBuilder.Entity<InboundOrder>().HasQueryFilter(e => e.TenantId == _userContext.TenantId);
+        modelBuilder.Entity<OutboundOrder>().HasQueryFilter(e => e.TenantId == _userContext.TenantId);
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -71,7 +69,10 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, IdentityRole<Guid
         {
             if (entry.State == EntityState.Added)
             {
-                entry.Entity.TenantId = _userContext.TenantId ?? Guid.Empty;
+                if (entry.Entity.TenantId == Guid.Empty && _userContext.TenantId.HasValue)
+                {
+                    entry.Entity.TenantId = _userContext.TenantId.Value;
+                }
             }
         }
         return base.SaveChangesAsync(cancellationToken);

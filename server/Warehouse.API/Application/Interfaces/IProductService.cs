@@ -5,9 +5,9 @@ namespace Warehouse.API.Application.Interfaces;
 
 public interface IProductService
 {
-    Task<IEnumerable<Product>> GetAllAsync(Guid tenantId);
-    Task<Product?> GetByIdAsync(Guid tenantId, Guid productId);
-    Task<Product> CreateAsync(Guid tenantId, UpsertProductRequest request);
-    Task<Product> UpdateAsync(Guid tenantId, Guid productId, UpsertProductRequest request);
-    Task<bool> DeleteAsync(Guid tenantId, Guid productId);
+    Task<IEnumerable<Product>> GetAllAsync(); 
+    Task<Product?> GetByIdAsync(Guid productId);
+    Task<Product> CreateAsync(UpsertProductRequest request);
+    Task<Product> UpdateAsync(Guid productId, UpsertProductRequest request);
+    Task<bool> DeleteAsync(Guid productId);
 }

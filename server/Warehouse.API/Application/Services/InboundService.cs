@@ -16,7 +16,7 @@ public class InboundService : IInboundService
         _context = context;
     }
 
-    public async Task<bool> ReceiveProductAsync(Guid tenantId, ReceiveProductRequest request)
+    public async Task<bool> ReceiveProductAsync(ReceiveProductRequest request)
     {
         using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -32,22 +32,20 @@ public class InboundService : IInboundService
 
             if (orderItem.ReceivedQuantity + request.Quantity > orderItem.Quantity)
             {
-                throw new Exception($"Переприймання заборонено! Очікується: {orderItem.Quantity - orderItem.ReceivedQuantity}, а ви намагаєтесь прийняти: {request.Quantity}");
+                throw new Exception($"Переприймання заборонено! Очікувана решта: {orderItem.Quantity - orderItem.ReceivedQuantity}");
             }
 
             Guid? batchId = null;
             if (!string.IsNullOrEmpty(request.BatchNumber))
             {
                 var batch = await _context.Batches
-                    .FirstOrDefaultAsync(b => b.TenantId == tenantId && 
-                                             b.BatchNumber == request.BatchNumber && 
+                    .FirstOrDefaultAsync(b => b.BatchNumber == request.BatchNumber && 
                                              b.ProductId == request.ProductId);
 
                 if (batch == null)
                 {
                     batch = new Batch
                     {
-                        TenantId = tenantId,
                         ProductId = request.ProductId,
                         BatchNumber = request.BatchNumber,
                         ExpirationDate = request.ExpirationDate
@@ -59,8 +57,7 @@ public class InboundService : IInboundService
             }
 
             var balance = await _context.InventoryBalances
-                .FirstOrDefaultAsync(b => b.TenantId == tenantId &&
-                                         b.LocationId == request.LocationId &&
+                .FirstOrDefaultAsync(b => b.LocationId == request.LocationId &&
                                          b.ProductId == request.ProductId &&
                                          b.BatchId == batchId);
 
@@ -68,7 +65,6 @@ public class InboundService : IInboundService
             {
                 balance = new InventoryBalance
                 {
-                    TenantId = tenantId,
                     ProductId = request.ProductId,
                     LocationId = request.LocationId,
                     BatchId = batchId,
@@ -85,7 +81,6 @@ public class InboundService : IInboundService
 
             var movement = new InventoryTransaction
             {
-                TenantId = tenantId,
                 ProductId = request.ProductId,
                 FromLocationId = null,
                 ToLocationId = request.LocationId,
@@ -102,15 +97,7 @@ public class InboundService : IInboundService
                 .ToListAsync();
 
             var allReceived = allItemsInOrder.All(oi => oi.ReceivedQuantity == oi.Quantity);
-
-            if (allReceived)
-            {
-                orderItem.InboundOrder.Status = OrderStatus.Completed;
-            }
-            else
-            {
-                orderItem.InboundOrder.Status = OrderStatus.InProgress;
-            }
+            orderItem.InboundOrder.Status = allReceived ? OrderStatus.Completed : OrderStatus.InProgress;
 
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();

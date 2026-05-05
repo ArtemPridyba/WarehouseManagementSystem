@@ -15,26 +15,24 @@ public class DashboardService : IDashboardService
         _context = context;
     }
 
-    public async Task<DashboardStatsResponse> GetGeneralStatsAsync(Guid tenantId)
+    public async Task<DashboardStatsResponse> GetGeneralStatsAsync()
     {
         var now = DateTime.UtcNow;
 
         var summary = new SummaryStats(
-            TotalProducts: await _context.Products.CountAsync(p => p.TenantId == tenantId),
-            TotalItemsCount: await _context.InventoryBalances.Where(b => b.TenantId == tenantId).SumAsync(b => b.Quantity),
-            PendingInboundOrders: await _context.InboundOrders.CountAsync(o => o.TenantId == tenantId && o.Status != OrderStatus.Completed),
-            PendingOutboundOrders: await _context.OutboundOrders.CountAsync(o => o.TenantId == tenantId && o.Status != OrderStatus.Completed),
-            LowStockAlerts: await _context.InventoryBalances.Where(b => b.TenantId == tenantId && b.Quantity < 10).CountAsync()
+            TotalProducts: await _context.Products.CountAsync(),
+            TotalItemsCount: await _context.InventoryBalances.SumAsync(b => b.Quantity),
+            PendingInboundOrders: await _context.InboundOrders.CountAsync(o => o.Status != OrderStatus.Completed),
+            PendingOutboundOrders: await _context.OutboundOrders.CountAsync(o => o.Status != OrderStatus.Completed),
+            LowStockAlerts: await _context.InventoryBalances.Where(b => b.Quantity < 10).CountAsync()
         );
 
         var categoryData = await _context.InventoryBalances
-            .Where(b => b.TenantId == tenantId)
             .GroupBy(b => b.Product.Category.Name ?? "Без категорії")
             .Select(g => new CategoryDistributionDto(g.Key, g.Sum(x => x.Quantity), 0))
             .ToListAsync();
 
         var occupancy = await _context.Warehouses
-            .Where(w => w.TenantId == tenantId)
             .Select(w => new WarehouseOccupancyDto(
                 w.Name,
                 w.Zones.SelectMany(z => z.Locations).Count(),
@@ -44,7 +42,7 @@ public class DashboardService : IDashboardService
 
         var alerts = await _context.Batches
             .Include(b => b.Product)
-            .Where(b => b.TenantId == tenantId && b.ExpirationDate != null && b.ExpirationDate <= now.AddDays(30))
+            .Where(b => b.ExpirationDate != null && b.ExpirationDate <= now.AddDays(30))
             .Select(b => new ExpiryAlertDto(b.Product.Name, b.BatchNumber, b.ExpirationDate!.Value, (b.ExpirationDate.Value - now).Days))
             .Take(5)
             .ToListAsync();
@@ -53,15 +51,16 @@ public class DashboardService : IDashboardService
         {
             Summary = summary,
             CategoryDistribution = categoryData,
-            WarehouseOccupancy = occupancy.Select(o => o with { OccupancyPercentage = o.TotalLocations > 0 ? (double)o.OccupiedLocations / o.TotalLocations * 100 : 0 }).ToList(),
+            WarehouseOccupancy = occupancy.Select(o => o with { 
+                OccupancyPercentage = o.TotalLocations > 0 ? (double)o.OccupiedLocations / o.TotalLocations * 100 : 0 
+            }).ToList(),
             ExpiryAlerts = alerts
         };
     }
 
-    public async Task<IEnumerable<AbcAnalysisDto>> GetAbcAnalysisAsync(Guid tenantId)
+    public async Task<IEnumerable<AbcAnalysisDto>> GetAbcAnalysisAsync()
     {
         var data = await _context.InventoryBalances
-            .Where(b => b.TenantId == tenantId)
             .GroupBy(b => b.Product.Category.Name ?? "Інше")
             .Select(g => new { Name = g.Key, Qty = g.Sum(x => x.Quantity) })
             .OrderByDescending(x => x.Qty)
@@ -77,10 +76,9 @@ public class DashboardService : IDashboardService
         });
     }
 
-    public async Task<IEnumerable<LocationUtilizationDto>> GetLocationUtilizationAsync(Guid tenantId)
+    public async Task<IEnumerable<LocationUtilizationDto>> GetLocationUtilizationAsync()
     {
         return await _context.Locations
-            .Where(l => l.TenantId == tenantId)
             .GroupBy(l => l.Type)
             .Select(g => new LocationUtilizationDto(
                 g.Key.ToString(),
@@ -90,35 +88,42 @@ public class DashboardService : IDashboardService
             )).ToListAsync();
     }
 
-    public async Task<IEnumerable<HourlyActivityDto>> GetHourlyHeatmapAsync(Guid tenantId)
+    public async Task<IEnumerable<HourlyActivityDto>> GetHourlyHeatmapAsync()
     {
         var startDate = DateTime.UtcNow.AddDays(-7);
         
         var hoursData = await _context.InventoryTransactions
-            .Where(t => t.TenantId == tenantId && t.CreatedAt >= startDate)
+            .Where(t => t.CreatedAt >= startDate)
             .Select(t => t.CreatedAt.Hour)
             .ToListAsync();
         
         return hoursData
             .GroupBy(hour => hour)
-            .Select(g => new HourlyActivityDto(
-                g.Key, 
-                g.Count()
-            ))
+            .Select(g => new HourlyActivityDto(g.Key, g.Count()))
             .OrderBy(g => g.Hour)
             .ToList();
     }
 
-    public async Task<IEnumerable<StockTurnoverDto>> GetStockTurnoverAsync(Guid tenantId, int days)
+    public async Task<IEnumerable<StockTurnoverDto>> GetStockTurnoverAsync(int days)
     {
         var dateLimit = DateTime.UtcNow.AddDays(-days);
-        return await _context.Products
-            .Where(p => p.TenantId == tenantId)
-            .Select(p => new StockTurnoverDto(
-                p.Name,
-                _context.InventoryTransactions.Where(t => t.ProductId == p.Id && t.Type == TransactionType.Inbound && t.CreatedAt >= dateLimit).Sum(t => t.Quantity),
-                _context.InventoryTransactions.Where(t => t.ProductId == p.Id && t.Type == TransactionType.Outbound && t.CreatedAt >= dateLimit).Sum(t => t.Quantity),
-                0
-            )).ToListAsync();
+        
+        var products = await _context.Products.AsNoTracking().ToListAsync();
+        var result = new List<StockTurnoverDto>();
+
+        foreach (var p in products)
+        {
+            var inbound = await _context.InventoryTransactions
+                .Where(t => t.ProductId == p.Id && t.Type == TransactionType.Inbound && t.CreatedAt >= dateLimit)
+                .SumAsync(t => t.Quantity);
+
+            var outbound = await _context.InventoryTransactions
+                .Where(t => t.ProductId == p.Id && t.Type == TransactionType.Outbound && t.CreatedAt >= dateLimit)
+                .SumAsync(t => t.Quantity);
+
+            result.Add(new StockTurnoverDto(p.Name, inbound, outbound, inbound > 0 ? (double)(outbound / inbound) : 0));
+        }
+
+        return result;
     }
 }

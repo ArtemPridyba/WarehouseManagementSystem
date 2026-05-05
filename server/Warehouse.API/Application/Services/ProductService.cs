@@ -15,31 +15,28 @@ public class ProductService : IProductService
         _context = context;
     }
 
-    public async Task<IEnumerable<Product>> GetAllAsync(Guid tenantId)
+    public async Task<IEnumerable<Product>> GetAllAsync()
     {
         return await _context.Products
             .Include(p => p.Category)
-            .Where(p => p.TenantId == tenantId)
             .AsNoTracking()
             .ToListAsync();
     }
 
-    public async Task<Product?> GetByIdAsync(Guid tenantId, Guid productId)
+    public async Task<Product?> GetByIdAsync(Guid productId)
     {
         return await _context.Products
             .Include(p => p.Category)
-            .FirstOrDefaultAsync(p => p.TenantId == tenantId && p.Id == productId);
+            .FirstOrDefaultAsync(p => p.Id == productId);
     }
 
-    public async Task<Product> CreateAsync(Guid tenantId, UpsertProductRequest request)
+    public async Task<Product> CreateAsync(UpsertProductRequest request)
     {
-        // Перевірка на унікальність SKU
-        var exists = await _context.Products.AnyAsync(p => p.TenantId == tenantId && p.SKU == request.SKU);
+        var exists = await _context.Products.AnyAsync(p => p.SKU == request.SKU);
         if (exists) throw new Exception("Товар з таким SKU вже існує");
 
         var product = new Product
         {
-            TenantId = tenantId,
             Name = request.Name,
             SKU = request.SKU,
             Barcode = request.Barcode,
@@ -52,18 +49,15 @@ public class ProductService : IProductService
         return product;
     }
 
-    public async Task<Product> UpdateAsync(Guid tenantId, Guid productId, UpsertProductRequest request)
+    public async Task<Product> UpdateAsync(Guid productId, UpsertProductRequest request)
     {
-        var product = await _context.Products
-            .FirstOrDefaultAsync(p => p.TenantId == tenantId && p.Id == productId);
-
+        var product = await _context.Products.FirstOrDefaultAsync(p => p.Id == productId);
         if (product == null) throw new Exception("Товар не знайдено");
 
-        // Перевірка SKU, якщо він змінився
         if (product.SKU != request.SKU)
         {
-            var exists = await _context.Products.AnyAsync(p => p.TenantId == tenantId && p.SKU == request.SKU);
-            if (exists) throw new Exception("Новий SKU вже зайнятий іншим товаром");
+            var exists = await _context.Products.AnyAsync(p => p.SKU == request.SKU);
+            if (exists) throw new Exception("Новий SKU вже зайнятий");
         }
 
         product.Name = request.Name;
@@ -76,14 +70,13 @@ public class ProductService : IProductService
         return product;
     }
 
-    public async Task<bool> DeleteAsync(Guid tenantId, Guid productId)
+    public async Task<bool> DeleteAsync(Guid productId)
     {
         var product = await _context.Products.FindAsync(productId);
-        if (product == null || product.TenantId != tenantId) return false;
+        if (product == null) return false;
 
-        // ВАЖЛИВО: Перевіряємо, чи немає цього товару на залишках
         var hasStock = await _context.InventoryBalances.AnyAsync(b => b.ProductId == productId);
-        if (hasStock) throw new Exception("Неможливо видалити товар, який є в наявності на складі");
+        if (hasStock) throw new Exception("Неможливо видалити товар, який є на складі");
 
         _context.Products.Remove(product);
         await _context.SaveChangesAsync();

@@ -16,7 +16,7 @@ public class OutboundService : IOutboundService
         _context = context;
     }
 
-    public async Task<bool> ShipProductAsync(Guid tenantId, ShipProductRequest request)
+    public async Task<bool> ShipProductAsync(ShipProductRequest request)
     {
         using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -31,11 +31,10 @@ public class OutboundService : IOutboundService
                 throw new Exception("Товар не знайдено в замовленні на відвантаження!");
 
             if (orderItem.ShippedQuantity + request.Quantity > orderItem.Quantity)
-                throw new Exception($"Перевідвантаження заборонено! Очікувана решта: {orderItem.Quantity - orderItem.ShippedQuantity}");
+                throw new Exception($"Перевідвантаження заборонено! Залишилось відвантажити: {orderItem.Quantity - orderItem.ShippedQuantity}");
             
             var balance = await _context.InventoryBalances
-                .FirstOrDefaultAsync(b => b.TenantId == tenantId &&
-                                         b.LocationId == request.LocationId &&
+                .FirstOrDefaultAsync(b => b.LocationId == request.LocationId &&
                                          b.ProductId == request.ProductId &&
                                          b.BatchId == request.BatchId);
 
@@ -49,10 +48,9 @@ public class OutboundService : IOutboundService
             
             var movement = new InventoryTransaction
             {
-                TenantId = tenantId,
                 ProductId = request.ProductId,
                 FromLocationId = request.LocationId,
-                ToLocationId = null,
+                ToLocationId = null, 
                 BatchId = request.BatchId,
                 Quantity = request.Quantity,
                 Type = TransactionType.Outbound,
@@ -66,15 +64,7 @@ public class OutboundService : IOutboundService
                 .ToListAsync();
 
             var allShipped = allItemsInOrder.All(oi => oi.ShippedQuantity == oi.Quantity);
-
-            if (allShipped)
-            {
-                orderItem.OutboundOrder.Status = OrderStatus.Completed;
-            }
-            else
-            {
-                orderItem.OutboundOrder.Status = OrderStatus.InProgress;
-            }
+            orderItem.OutboundOrder.Status = allShipped ? OrderStatus.Completed : OrderStatus.InProgress;
 
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();

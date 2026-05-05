@@ -1,36 +1,33 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Warehouse.API.Application.DTOs.Inbound;
 using Warehouse.API.Application.Interfaces;
-using Microsoft.EntityFrameworkCore;
 using Warehouse.API.Domain.Entities;
 using Warehouse.API.Domain.Enums;
-using Warehouse.API.Infrastructure.Data;
 
 namespace Warehouse.API.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class InboundController : ControllerBase
 {
     private readonly IInboundService _inboundService;
-    private readonly ApplicationDbContext _context;
+    private readonly IInboundOrderService _orderService; 
 
-    public InboundController(IInboundService inboundService, ApplicationDbContext context)
+    public InboundController(IInboundService inboundService, IInboundOrderService orderService)
     {
         _inboundService = inboundService;
-        _context = context;
+        _orderService = orderService;
     }
 
     [HttpPost("receive")]
     public async Task<IActionResult> Receive([FromBody] ReceiveProductRequest request)
     {
-        var tenant = await _context.Tenants.FirstOrDefaultAsync();
-        if (tenant == null) return BadRequest("Tenant not found");
-
         try 
         {
-            var result = await _inboundService.ReceiveProductAsync(tenant.Id, request);
-            return Ok("Товар успішно прийнято на склад");
+            await _inboundService.ReceiveProductAsync(request);
+            return Ok(new { Message = "Товар успішно прийнято на склад" });
         }
         catch (Exception ex) 
         {
@@ -38,13 +35,12 @@ public class InboundController : ControllerBase
         }
     }
     
-    [HttpGet("active")]
+    [HttpGet("active-orders")]
     public async Task<ActionResult<IEnumerable<InboundOrder>>> GetActiveOrders()
     {
-        var tenant = await _context.Tenants.FirstOrDefaultAsync();
+        var orders = await _orderService.GetAllAsync();
+        var activeOrders = orders.Where(o => o.Status != OrderStatus.Completed);
         
-        return await _context.InboundOrders
-            .Where(o => o.TenantId == tenant.Id && o.Status != OrderStatus.Completed)
-            .ToListAsync();
+        return Ok(activeOrders);
     }
 }

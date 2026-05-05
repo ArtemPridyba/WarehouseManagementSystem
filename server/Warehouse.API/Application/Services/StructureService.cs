@@ -12,14 +12,18 @@ public class StructureService : IStructureService
     private readonly ApplicationDbContext _context;
     public StructureService(ApplicationDbContext context) => _context = context;
 
-    public async Task<IEnumerable<Warehouse.API.Domain.Entities.Warehouse>> GetWarehousesAsync(Guid tenantId) =>
-        await _context.Warehouses.Where(w => w.TenantId == tenantId).ToListAsync();
+    // --- WAREHOUSES ---
 
-    public async Task<Warehouse.API.Domain.Entities.Warehouse> CreateWarehouseAsync(Guid tenantId, CreateWarehouseRequest request)
+    public async Task<IEnumerable<WarehouseEntity>> GetWarehousesAsync() =>
+        await _context.Warehouses.AsNoTracking().ToListAsync();
+
+    public async Task<WarehouseEntity?> GetWarehouseByIdAsync(Guid warehouseId) =>
+        await _context.Warehouses.FirstOrDefaultAsync(w => w.Id == warehouseId);
+
+    public async Task<WarehouseEntity> CreateWarehouseAsync(CreateWarehouseRequest request)
     {
-        var warehouse = new Warehouse.API.Domain.Entities.Warehouse 
+        var warehouse = new WarehouseEntity 
         { 
-            TenantId = tenantId, 
             Name = request.Name, 
             Address = request.Address 
         };
@@ -28,9 +32,9 @@ public class StructureService : IStructureService
         return warehouse;
     }
     
-    public async Task<WarehouseEntity> UpdateWarehouseAsync(Guid tenantId, Guid id, CreateWarehouseRequest request)
+    public async Task<WarehouseEntity> UpdateWarehouseAsync(Guid id, CreateWarehouseRequest request)
     {
-        var warehouse = await _context.Warehouses.FirstOrDefaultAsync(w => w.Id == id && w.TenantId == tenantId);
+        var warehouse = await _context.Warehouses.FirstOrDefaultAsync(w => w.Id == id);
         if (warehouse == null) throw new Exception("Склад не знайдено");
 
         warehouse.Name = request.Name;
@@ -39,9 +43,9 @@ public class StructureService : IStructureService
         return warehouse;
     }
 
-    public async Task<bool> DeleteWarehouseAsync(Guid tenantId, Guid id)
+    public async Task<bool> DeleteWarehouseAsync(Guid id)
     {
-        var warehouse = await _context.Warehouses.Include(w => w.Zones).FirstOrDefaultAsync(w => w.Id == id && w.TenantId == tenantId);
+        var warehouse = await _context.Warehouses.Include(w => w.Zones).FirstOrDefaultAsync(w => w.Id == id);
         if (warehouse == null) return false;
 
         if (warehouse.Zones.Any()) throw new Exception("Неможливо видалити склад, у якому є зони");
@@ -50,44 +54,29 @@ public class StructureService : IStructureService
         await _context.SaveChangesAsync();
         return true;
     }
-    
-    public async Task<WarehouseEntity?> GetWarehouseByIdAsync(Guid tenantId, Guid warehouseId)
-    {
-        return await _context.Warehouses
-            .Where(w => w.TenantId == tenantId && w.Id == warehouseId)
-            .AsNoTracking()
-            .FirstOrDefaultAsync();
-    }
 
-    public async Task<IEnumerable<Zone>> GetZonesAsync(Guid tenantId, Guid warehouseId)
-    {
-        return await _context.Zones
-            .Where(z => z.TenantId == tenantId && z.WarehouseId == warehouseId)
-            .ToListAsync();
-    }
+    // --- ZONES ---
 
-    public async Task<Zone> CreateZoneAsync(Guid tenantId, CreateZoneRequest request)
+    public async Task<IEnumerable<Zone>> GetZonesAsync(Guid warehouseId) =>
+        await _context.Zones.Where(z => z.WarehouseId == warehouseId).ToListAsync();
+
+    public async Task<Zone?> GetZoneByIdAsync(Guid zoneId) =>
+        await _context.Zones.AsNoTracking().FirstOrDefaultAsync(z => z.Id == zoneId);
+
+    public async Task<Zone> CreateZoneAsync(CreateZoneRequest request)
     {
-        var warehouseExists = await _context.Warehouses.AnyAsync(w => w.Id == request.WarehouseId && w.TenantId == tenantId);
+        var warehouseExists = await _context.Warehouses.AnyAsync(w => w.Id == request.WarehouseId);
         if (!warehouseExists) throw new Exception("Склад не знайдено");
 
-        var zone = new Zone { TenantId = tenantId, WarehouseId = request.WarehouseId, Name = request.Name };
+        var zone = new Zone { WarehouseId = request.WarehouseId, Name = request.Name };
         _context.Zones.Add(zone);
         await _context.SaveChangesAsync();
         return zone;
     }
-    
-    public async Task<Zone?> GetZoneByIdAsync(Guid tenantId, Guid zoneId)
-    {
-        return await _context.Zones
-            .Where(z => z.TenantId == tenantId && z.Id == zoneId)
-            .AsNoTracking()
-            .FirstOrDefaultAsync();
-    }
 
-    public async Task<Zone> UpdateZoneAsync(Guid tenantId, Guid id, CreateZoneRequest request)
+    public async Task<Zone> UpdateZoneAsync(Guid id, CreateZoneRequest request)
     {
-        var zone = await _context.Zones.FirstOrDefaultAsync(z => z.Id == id && z.TenantId == tenantId);
+        var zone = await _context.Zones.FirstOrDefaultAsync(z => z.Id == id);
         if (zone == null) throw new Exception("Зону не знайдено");
 
         zone.Name = request.Name;
@@ -95,9 +84,9 @@ public class StructureService : IStructureService
         return zone;
     }
 
-    public async Task<bool> DeleteZoneAsync(Guid tenantId, Guid id)
+    public async Task<bool> DeleteZoneAsync(Guid id)
     {
-        var zone = await _context.Zones.Include(z => z.Locations).FirstOrDefaultAsync(z => z.Id == id && z.TenantId == tenantId);
+        var zone = await _context.Zones.Include(z => z.Locations).FirstOrDefaultAsync(z => z.Id == id);
         if (zone == null) return false;
 
         if (zone.Locations.Any()) throw new Exception("Неможливо видалити зону, в якій є локації");
@@ -107,37 +96,34 @@ public class StructureService : IStructureService
         return true;
     }
 
-    public async Task<IEnumerable<Location>> GetLocationsByZoneAsync(Guid tenantId, Guid zoneId) =>
-        await _context.Locations.Where(l => l.TenantId == tenantId && l.ZoneId == zoneId).ToListAsync();
+    // --- LOCATIONS ---
 
-    public async Task<Location> CreateLocationAsync(Guid tenantId, CreateLocationRequest request)
+    public async Task<IEnumerable<Location>> GetLocationsByZoneAsync(Guid zoneId) =>
+        await _context.Locations.Where(l => l.ZoneId == zoneId).ToListAsync();
+
+    public async Task<Location?> GetLocationByIdAsync(Guid locationId) =>
+        await _context.Locations.AsNoTracking().FirstOrDefaultAsync(l => l.Id == locationId);
+
+    public async Task<Location> CreateLocationAsync(CreateLocationRequest request)
     {
-        var zoneExists = await _context.Zones.AnyAsync(z => z.Id == request.ZoneId && z.TenantId == tenantId);
+        var zoneExists = await _context.Zones.AnyAsync(z => z.Id == request.ZoneId);
         if (!zoneExists) throw new Exception("Зону не знайдено");
 
-        if (await _context.Locations.AnyAsync(l => l.TenantId == tenantId && l.Code == request.Code))
+        if (await _context.Locations.AnyAsync(l => l.Code == request.Code))
             throw new Exception("Локація з таким кодом вже існує");
 
-        var location = new Location { TenantId = tenantId, ZoneId = request.ZoneId, Code = request.Code, Type = request.Type };
+        var location = new Location { ZoneId = request.ZoneId, Code = request.Code, Type = request.Type };
         _context.Locations.Add(location);
         await _context.SaveChangesAsync();
         return location;
     }
     
-    public async Task<Location?> GetLocationByIdAsync(Guid tenantId, Guid locationId)
+    public async Task<Location> UpdateLocationAsync(Guid id, CreateLocationRequest request)
     {
-        return await _context.Locations
-            .Where(l => l.TenantId == tenantId && l.Id == locationId)
-            .AsNoTracking()
-            .FirstOrDefaultAsync();
-    }
-    
-    public async Task<Location> UpdateLocationAsync(Guid tenantId, Guid id, CreateLocationRequest request)
-    {
-        var location = await _context.Locations.FirstOrDefaultAsync(l => l.Id == id && l.TenantId == tenantId);
+        var location = await _context.Locations.FirstOrDefaultAsync(l => l.Id == id);
         if (location == null) throw new Exception("Локацію не знайдено");
         
-        if (location.Code != request.Code && await _context.Locations.AnyAsync(l => l.TenantId == tenantId && l.Code == request.Code))
+        if (location.Code != request.Code && await _context.Locations.AnyAsync(l => l.Code == request.Code))
             throw new Exception("Локація з таким кодом вже існує");
 
         location.Code = request.Code;
@@ -146,9 +132,9 @@ public class StructureService : IStructureService
         return location;
     }
 
-    public async Task<bool> DeleteLocationAsync(Guid tenantId, Guid locationId)
+    public async Task<bool> DeleteLocationAsync(Guid locationId)
     {
-        var location = await _context.Locations.FirstOrDefaultAsync(l => l.Id == locationId && l.TenantId == tenantId);
+        var location = await _context.Locations.FirstOrDefaultAsync(l => l.Id == locationId);
         if (location == null) return false;
         
         var hasStock = await _context.InventoryBalances.AnyAsync(b => b.LocationId == locationId);

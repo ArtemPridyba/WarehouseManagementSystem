@@ -4,5 +4,5 @@ namespace Warehouse.API.Application.Interfaces;
 
 public interface IInboundService
 {
-    Task<bool> ReceiveProductAsync(Guid tenantId, ReceiveProductRequest request);
+    Task<bool> ReceiveProductAsync(ReceiveProductRequest request);
 }

@@ -16,37 +16,35 @@ public class InboundOrderService : IInboundOrderService
         _context = context;
     }
 
-    public async Task<IEnumerable<InboundOrder>> GetAllAsync(Guid tenantId)
+    public async Task<IEnumerable<InboundOrder>> GetAllAsync()
     {
         return await _context.InboundOrders
             .Include(o => o.Items)
-            .Where(o => o.TenantId == tenantId)
+            .ThenInclude(i => i.Product)
             .OrderByDescending(o => o.CreatedAt)
             .AsNoTracking()
             .ToListAsync();
     }
 
-    public async Task<InboundOrder?> GetByIdAsync(Guid tenantId, Guid id)
+    public async Task<InboundOrder?> GetByIdAsync(Guid id)
     {
         return await _context.InboundOrders
             .Include(o => o.Items)
             .ThenInclude(i => i.Product)
-            .FirstOrDefaultAsync(o => o.Id == id && o.TenantId == tenantId);
+            .FirstOrDefaultAsync(o => o.Id == id);
     }
 
-    public async Task<InboundOrder> CreateAsync(Guid tenantId, InboundOrderRequest request)
+    public async Task<InboundOrder> CreateAsync(InboundOrderRequest request)
     {
-        // Перевірка на унікальність номера замовлення
         var exists = await _context.InboundOrders
-            .AnyAsync(o => o.TenantId == tenantId && o.OrderNumber == request.OrderNumber);
+            .AnyAsync(o => o.OrderNumber == request.OrderNumber);
         
         if (exists) throw new Exception($"Замовлення з номером {request.OrderNumber} вже існує");
 
         var order = new InboundOrder
         {
-            TenantId = tenantId,
             OrderNumber = request.OrderNumber,
-            Status = OrderStatus.Draft, // Початковий статус
+            Status = OrderStatus.Draft,
             CreatedAt = DateTime.UtcNow,
             Items = request.Items.Select(i => new InboundOrderItem
             {
@@ -61,16 +59,14 @@ public class InboundOrderService : IInboundOrderService
         return order;
     }
 
-    public async Task<bool> DeleteAsync(Guid tenantId, Guid id)
+    public async Task<bool> DeleteAsync(Guid id)
     {
-        var order = await _context.InboundOrders
-            .FirstOrDefaultAsync(o => o.Id == id && o.TenantId == tenantId);
+        var order = await _context.InboundOrders.FirstOrDefaultAsync(o => o.Id == id);
 
         if (order == null) return false;
 
-        // Бізнес-правило: не можна видаляти вже виконані замовлення
         if (order.Status == OrderStatus.Completed)
-            throw new Exception("Неможливо видалити завершене замовлення");
+            throw new Exception("Неможливо видалити вже виконане замовлення");
 
         _context.InboundOrders.Remove(order);
         await _context.SaveChangesAsync();

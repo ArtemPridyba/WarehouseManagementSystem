@@ -4,5 +4,5 @@ namespace Warehouse.API.Application.Interfaces;
 
 public interface IOutboundService
 {
-    Task<bool> ShipProductAsync(Guid tenantId, ShipProductRequest request);
+    Task<bool> ShipProductAsync(ShipProductRequest request);
 }

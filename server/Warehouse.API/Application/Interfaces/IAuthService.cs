@@ -7,4 +7,5 @@ public interface IAuthService
     Task<AuthResponse> RegisterAsync(RegisterRequest request);
     Task<AuthResponse> LoginAsync(LoginRequest request);
     Task<bool> RegisterEmployeeAsync(Guid tenantId, CreateEmployeeRequest request);
+    Task<IEnumerable<EmployeeDto>> GetEmployeesAsync(Guid tenantId);
 }

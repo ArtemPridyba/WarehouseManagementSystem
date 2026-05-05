@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Identity;
 using Warehouse.API.Application.Interfaces;
 using Warehouse.API.Application.Services;
 using Warehouse.API.Domain.Entities;
-using Warehouse.API.Domain.Enums;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;

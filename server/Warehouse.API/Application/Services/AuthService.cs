@@ -84,7 +84,8 @@ public class AuthService : IAuthService
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Email, user.Email!),
             new Claim("TenantId", user.TenantId.ToString()),
-            new Claim("FullName", $"{user.FirstName} {user.LastName}")
+            new Claim("FullName", $"{user.FirstName} {user.LastName}"),
+            new Claim(ClaimTypes.Role, (await _userManager.GetRolesAsync(user)).FirstOrDefault() ?? "Worker")
         };
 
         var tokenDescriptor = new SecurityTokenDescriptor
@@ -126,5 +127,27 @@ public class AuthService : IAuthService
         }
 
         throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
+    }
+    
+    public async Task<IEnumerable<EmployeeDto>> GetEmployeesAsync(Guid tenantId)
+    {
+        var users = await _userManager.Users
+            .Where(u => u.TenantId == tenantId)
+            .ToListAsync();
+
+        var result = new List<EmployeeDto>();
+        foreach (var user in users)
+        {
+            var roles = await _userManager.GetRolesAsync(user);
+            result.Add(new EmployeeDto(
+                user.Id,
+                user.FirstName,
+                user.LastName,
+                user.Email!,
+                roles.FirstOrDefault() ?? "Worker",
+                user.CreatedAt
+            ));
+        }
+        return result;
     }
 }
