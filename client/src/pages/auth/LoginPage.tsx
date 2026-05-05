@@ -3,6 +3,7 @@ import { Package, Loader2, AlertCircle } from 'lucide-react';
 import { useLogin } from '../../hooks/useAuth';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { Link } from 'react-router-dom';
 
 export default function LoginPage() {
     const { isAuthenticated } = useAuth();
@@ -174,7 +175,7 @@ export default function LoginPage() {
 
                     <p className="text-center text-sm mt-6" style={{ color: '#475569' }}>
                         Нова компанія?{' '}
-                        <a href="/register" style={{ color: '#818cf8' }}>Зареєструватись</a>
+                        <Link to="/register" style={{ color: '#818cf8' }}>Зареєструватись</Link>
                     </p>
                 </div>
             </div>
