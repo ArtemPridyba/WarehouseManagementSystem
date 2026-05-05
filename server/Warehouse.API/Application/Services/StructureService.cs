@@ -106,28 +106,24 @@ public class StructureService : IStructureService
 
     public async Task<Location> CreateLocationAsync(CreateLocationRequest request)
     {
-        var zoneExists = await _context.Zones.AnyAsync(z => z.Id == request.ZoneId);
-        if (!zoneExists) throw new Exception("Зону не знайдено");
-
-        if (await _context.Locations.AnyAsync(l => l.Code == request.Code))
-            throw new Exception("Локація з таким кодом вже існує");
-
-        var location = new Location { ZoneId = request.ZoneId, Code = request.Code, Type = request.Type };
+        var location = new Location
+        {
+            ZoneId = request.ZoneId,
+            Code = request.Code,
+            Type = request.LocationType 
+        };
         _context.Locations.Add(location);
         await _context.SaveChangesAsync();
         return location;
     }
-    
+
     public async Task<Location> UpdateLocationAsync(Guid id, CreateLocationRequest request)
     {
-        var location = await _context.Locations.FirstOrDefaultAsync(l => l.Id == id);
-        if (location == null) throw new Exception("Локацію не знайдено");
-        
-        if (location.Code != request.Code && await _context.Locations.AnyAsync(l => l.Code == request.Code))
-            throw new Exception("Локація з таким кодом вже існує");
-
+        var location = await _context.Locations.FindAsync(id);
+        if (location == null) throw new Exception("Комірку не знайдено");
+    
         location.Code = request.Code;
-        location.Type = request.Type;
+        location.Type = request.LocationType;
         await _context.SaveChangesAsync();
         return location;
     }

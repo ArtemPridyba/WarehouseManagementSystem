@@ -311,11 +311,19 @@ export default function WarehousePage() {
 
     async function saveLocation() {
         if (modal?.type === 'location-create') {
-            const req: CreateLocationRequest = { zoneId: modal.zoneId, code: locForm.code, type: locForm.type };
+            const req: CreateLocationRequest = {
+                zoneId: modal.zoneId,
+                code: locForm.code,
+                locationType: locForm.type,
+            };
             const created = await warehouseService.createLocation(req);
             setLocations(p => ({ ...p, [modal.zoneId]: [...(p[modal.zoneId] ?? []), created] }));
         } else if (modal?.type === 'location-edit') {
-            const req: CreateLocationRequest = { zoneId: modal.location.zoneId, code: locForm.code, type: locForm.type };
+            const req: CreateLocationRequest = {
+                zoneId: modal.location.zoneId,
+                code: locForm.code,
+                locationType: locForm.type,
+            };
             const updated = await warehouseService.updateLocation(modal.location.id, req);
             setLocations(p => ({
                 ...p,

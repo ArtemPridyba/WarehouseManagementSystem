@@ -1,8 +1,15 @@
 ﻿import { useState, type FormEvent } from 'react';
 import { Package, Loader2, AlertCircle } from 'lucide-react';
 import { useLogin } from '../../hooks/useAuth';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function LoginPage() {
+    const { isAuthenticated } = useAuth();
+    if (isAuthenticated) {
+        return <Navigate to="/dashboard" replace />;
+    }
+
     const { execute: loginUser } = useLogin();
 
     const [email, setEmail] = useState('');

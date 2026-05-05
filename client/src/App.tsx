@@ -21,9 +21,9 @@ export default function App() {
                         <Route element={<MainLayout />}>
                             <Route path="/dashboard" element={<DashboardPage />} />
                             <Route path="/warehouse" element={<WarehousePage />} />
-                            <Route path="/products" element={<ProductsPage />} />
-                            <Route path="/inbound" element={<InboundPage />} />
-                            <Route path="/outbound" element={<OutboundPage />} />
+                            <Route path="/products"  element={<ProductsPage />} />
+                            <Route path="/inbound"   element={<InboundPage />} />
+                            <Route path="/outbound"  element={<OutboundPage />} />
                         </Route>
                     </Route>
 
@@ -33,20 +33,10 @@ export default function App() {
                         </Route>
                     </Route>
 
+                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="*" element={<Navigate to="/login" replace />} />
                 </Routes>
             </BrowserRouter>
         </AuthProvider>
-    );
-}
-
-function Placeholder({ title }: { title: string }) {
-    return (
-        <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-                <p className="text-2xl font-bold mb-2" style={{ color: '#f1f5f9' }}>{title}</p>
-                <p className="text-sm" style={{ color: '#475569' }}>Сторінка в розробці</p>
-            </div>
-        </div>
     );
 }
