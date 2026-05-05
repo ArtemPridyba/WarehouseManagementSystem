@@ -5,8 +5,8 @@ namespace Warehouse.API.Application.Interfaces;
 
 public interface IInventoryService
 {
-    Task<bool> InternalTransferAsync(Guid tenantId, TransferRequest request);
-    Task<IEnumerable<object>> GetAvailableLocationsForProductAsync(Guid tenantId, Guid productId);
-    Task<IEnumerable<InventoryBalance>> GetWarehouseStockAsync(Guid tenantId, Guid warehouseId);
-    Task<bool> AdjustStockAsync(Guid tenantId, AdjustmentRequest request);
+    Task<IEnumerable<InventoryBalance>> GetWarehouseStockAsync(Guid warehouseId);
+    Task<IEnumerable<object>> GetAvailableLocationsForProductAsync(Guid productId);
+    Task<bool> InternalTransferAsync(TransferRequest request);
+    Task<bool> AdjustStockAsync(AdjustmentRequest request);
 }

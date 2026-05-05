@@ -16,23 +16,23 @@ public class InventoryService : IInventoryService
         _context = context;
     }
     
-    public async Task<IEnumerable<InventoryBalance>> GetWarehouseStockAsync(Guid tenantId, Guid warehouseId)
+    public async Task<IEnumerable<InventoryBalance>> GetWarehouseStockAsync(Guid warehouseId)
     {
         return await _context.InventoryBalances
             .Include(b => b.Product)
             .Include(b => b.Location)
             .Include(b => b.Batch)
-            .Where(b => b.TenantId == tenantId && b.Location.Zone.WarehouseId == warehouseId)
+            .Where(b => b.Location.Zone.WarehouseId == warehouseId)
             .AsNoTracking()
             .ToListAsync();
     }
     
-    public async Task<IEnumerable<object>> GetAvailableLocationsForProductAsync(Guid tenantId, Guid productId)
+    public async Task<IEnumerable<object>> GetAvailableLocationsForProductAsync(Guid productId)
     {
         return await _context.InventoryBalances
             .Include(b => b.Location)
             .Include(b => b.Batch)
-            .Where(b => b.TenantId == tenantId && b.ProductId == productId && b.Quantity > 0)
+            .Where(b => b.ProductId == productId && b.Quantity > 0)
             .Select(b => new {
                 LocationCode = b.Location.Code,
                 LocationId = b.LocationId,
@@ -44,21 +44,20 @@ public class InventoryService : IInventoryService
             .ToListAsync();
     }
     
-    public async Task<bool> InternalTransferAsync(Guid tenantId, TransferRequest request)
+    public async Task<bool> InternalTransferAsync(TransferRequest request)
     {
         using var transaction = await _context.Database.BeginTransactionAsync();
 
         try
         {
             var sourceBalance = await _context.InventoryBalances
-                .FirstOrDefaultAsync(b => b.TenantId == tenantId &&
-                                         b.LocationId == request.FromLocationId &&
+                .FirstOrDefaultAsync(b => b.LocationId == request.FromLocationId &&
                                          b.ProductId == request.ProductId &&
                                          b.BatchId == request.BatchId);
 
             if (sourceBalance == null || sourceBalance.Quantity < request.Quantity)
             {
-                return false;
+                throw new Exception("Недостатньо товару на вихідній локації");
             }
             
             sourceBalance.Quantity -= request.Quantity;
@@ -68,8 +67,7 @@ public class InventoryService : IInventoryService
             }
             
             var destBalance = await _context.InventoryBalances
-                .FirstOrDefaultAsync(b => b.TenantId == tenantId &&
-                                         b.LocationId == request.ToLocationId &&
+                .FirstOrDefaultAsync(b => b.LocationId == request.ToLocationId &&
                                          b.ProductId == request.ProductId &&
                                          b.BatchId == request.BatchId);
 
@@ -77,7 +75,6 @@ public class InventoryService : IInventoryService
             {
                 destBalance = new InventoryBalance
                 {
-                    TenantId = tenantId,
                     ProductId = request.ProductId,
                     LocationId = request.ToLocationId,
                     BatchId = request.BatchId,
@@ -92,7 +89,6 @@ public class InventoryService : IInventoryService
             
             var movement = new InventoryTransaction
             {
-                TenantId = tenantId,
                 ProductId = request.ProductId,
                 FromLocationId = request.FromLocationId,
                 ToLocationId = request.ToLocationId,
@@ -100,7 +96,7 @@ public class InventoryService : IInventoryService
                 Quantity = request.Quantity,
                 Type = TransactionType.Transfer,
                 CreatedAt = DateTime.UtcNow,
-                Reference = "Internal Transfer (Putaway/Replenishment)"
+                Reference = "Internal Transfer"
             };
             _context.InventoryTransactions.Add(movement);
             
@@ -111,66 +107,63 @@ public class InventoryService : IInventoryService
         catch (Exception)
         {
             await transaction.RollbackAsync();
-            return false;
+            throw;
         }
     }
     
-    public async Task<bool> AdjustStockAsync(Guid tenantId, AdjustmentRequest request)
-{
-    using var transaction = await _context.Database.BeginTransactionAsync();
-    try
+    public async Task<bool> AdjustStockAsync(AdjustmentRequest request)
     {
-        var balance = await _context.InventoryBalances
-            .FirstOrDefaultAsync(b => b.TenantId == tenantId &&
-                                     b.LocationId == request.LocationId &&
-                                     b.ProductId == request.ProductId &&
-                                     b.BatchId == request.BatchId);
-
-        decimal oldQuantity = balance?.Quantity ?? 0;
-        decimal delta = request.NewQuantity - oldQuantity;
-
-        if (delta == 0) return true; 
-
-        if (balance == null)
+        using var transaction = await _context.Database.BeginTransactionAsync();
+        try
         {
-            balance = new InventoryBalance
+            var balance = await _context.InventoryBalances
+                .FirstOrDefaultAsync(b => b.LocationId == request.LocationId &&
+                                         b.ProductId == request.ProductId &&
+                                         b.BatchId == request.BatchId);
+
+            decimal oldQuantity = balance?.Quantity ?? 0;
+            decimal delta = request.NewQuantity - oldQuantity;
+
+            if (delta == 0) return true; 
+
+            if (balance == null)
             {
-                TenantId = tenantId,
+                balance = new InventoryBalance
+                {
+                    ProductId = request.ProductId,
+                    LocationId = request.LocationId,
+                    BatchId = request.BatchId,
+                    Quantity = request.NewQuantity
+                };
+                _context.InventoryBalances.Add(balance);
+            }
+            else
+            {
+                balance.Quantity = request.NewQuantity;
+                if (balance.Quantity <= 0) _context.InventoryBalances.Remove(balance);
+            }
+            
+            var movement = new InventoryTransaction
+            {
                 ProductId = request.ProductId,
-                LocationId = request.LocationId,
+                FromLocationId = request.LocationId, 
+                ToLocationId = request.LocationId,
                 BatchId = request.BatchId,
-                Quantity = request.NewQuantity
+                Quantity = delta,
+                Type = TransactionType.Adjustment,
+                CreatedAt = DateTime.UtcNow,
+                Reference = $"Adjustment: {request.Reason}"
             };
-            _context.InventoryBalances.Add(balance);
-        }
-        else
-        {
-            balance.Quantity = request.NewQuantity;
-            if (balance.Quantity <= 0) _context.InventoryBalances.Remove(balance);
-        }
-        
-        var movement = new InventoryTransaction
-        {
-            TenantId = tenantId,
-            ProductId = request.ProductId,
-            FromLocationId = request.LocationId, 
-            ToLocationId = request.LocationId,
-            BatchId = request.BatchId,
-            Quantity = delta,
-            Type = TransactionType.Adjustment,
-            CreatedAt = DateTime.UtcNow,
-            Reference = $"Adjustment: {request.Reason}"
-        };
-        _context.InventoryTransactions.Add(movement);
+            _context.InventoryTransactions.Add(movement);
 
-        await _context.SaveChangesAsync();
-        await transaction.CommitAsync();
-        return true;
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return true;
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
-    catch (Exception)
-    {
-        await transaction.RollbackAsync();
-        throw;
-    }
-}
 }

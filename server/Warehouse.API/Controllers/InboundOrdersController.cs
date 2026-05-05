@@ -1,48 +1,44 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Warehouse.API.Application.DTOs.Orders;
 using Warehouse.API.Application.Interfaces;
 using Warehouse.API.Domain.Entities;
-using Warehouse.API.Infrastructure.Data;
 
 namespace Warehouse.API.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class InboundOrdersController : ControllerBase
 {
     private readonly IInboundOrderService _orderService;
-    private readonly ApplicationDbContext _context;
 
-    public InboundOrdersController(IInboundOrderService orderService, ApplicationDbContext context)
+    public InboundOrdersController(IInboundOrderService orderService)
     {
         _orderService = orderService;
-        _context = context;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<InboundOrder>>> GetAll()
     {
-        var tenant = await _context.Tenants.FirstAsync();
-        return Ok(await _orderService.GetAllAsync(tenant.Id));
+        return Ok(await _orderService.GetAllAsync());
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<InboundOrder>> GetById(Guid id)
     {
-        var tenant = await _context.Tenants.FirstAsync();
-        var order = await _orderService.GetByIdAsync(tenant.Id, id);
+        var order = await _orderService.GetByIdAsync(id);
         if (order == null) return NotFound();
         return Ok(order);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<ActionResult<InboundOrder>> Create([FromBody] InboundOrderRequest request)
     {
-        var tenant = await _context.Tenants.FirstAsync();
         try
         {
-            var order = await _orderService.CreateAsync(tenant.Id, request);
+            var order = await _orderService.CreateAsync(request);
             return CreatedAtAction(nameof(GetById), new { id = order.Id }, order);
         }
         catch (Exception ex)
@@ -51,13 +47,13 @@ public class InboundOrdersController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var tenant = await _context.Tenants.FirstAsync();
         try
         {
-            var success = await _orderService.DeleteAsync(tenant.Id, id);
+            var success = await _orderService.DeleteAsync(id);
             if (!success) return NotFound();
             return NoContent();
         }

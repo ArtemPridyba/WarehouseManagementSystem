@@ -30,3 +30,12 @@ public record CreateEmployeeRequest(
     [Required] [MinLength(6)] string Password,
     [Required] string Role
 );
+
+public record EmployeeDto(
+    Guid Id,
+    string FirstName,
+    string LastName,
+    string Email,
+    string Role,
+    DateTime CreatedAt
+);

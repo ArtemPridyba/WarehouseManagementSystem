@@ -32,7 +32,7 @@ public class DbInitializer : IDbInitializer
         {
             await _context.Database.MigrateAsync();
         }
-        
+
         string[] roles = { "Admin", "Worker" };
         foreach (var roleName in roles)
         {
@@ -41,65 +41,97 @@ public class DbInitializer : IDbInitializer
                 await _roleManager.CreateAsync(new IdentityRole<Guid>(roleName));
             }
         }
-        
+
         if (!await _context.Tenants.AnyAsync())
         {
-            await SeedDemoDataAsync();
+            await SeedTenantOneAsync();
+            await SeedTenantTwoAsync();
         }
     }
 
-    private async Task SeedDemoDataAsync()
+    private async Task SeedTenantOneAsync()
     {
-        var tenant = new Tenant { Name = "Demo Logistics Corp" };
+        // 1. Тенант
+        var tenant = new Tenant { Id = Guid.NewGuid(), Name = "Global Logistics Group" };
         _context.Tenants.Add(tenant);
         await _context.SaveChangesAsync();
-        
-        var adminUser = new AppUser
-        {
-            UserName = "admin@wms.com",
-            Email = "admin@wms.com",
-            FirstName = "System",
-            LastName = "Administrator",
-            TenantId = tenant.Id,
-            EmailConfirmed = true
-        };
 
-        var result = await _userManager.CreateAsync(adminUser, "Admin123!");
-        if (result.Succeeded)
-        {
-            await _userManager.AddToRoleAsync(adminUser, "Admin");
-        }
-        
-        var warehouse = new Warehouse.API.Domain.Entities.Warehouse 
-        { 
-            TenantId = tenant.Id, 
-            Name = "Центральний Склад", 
-            Address = "Київ, вул. Магістральна 1" 
-        };
-        _context.Warehouses.Add(warehouse);
+        // 2. Користувачі (Адмін та Воркер)
+        var admin = new AppUser { Id = Guid.NewGuid(), UserName = "admin@global.com", Email = "admin@global.com", FirstName = "Олексій", LastName = "Адмін", TenantId = tenant.Id, EmailConfirmed = true };
+        await _userManager.CreateAsync(admin, "Admin123!");
+        await _userManager.AddToRoleAsync(admin, "Admin");
+
+        var worker = new AppUser { Id = Guid.NewGuid(), UserName = "worker@global.com", Email = "worker@global.com", FirstName = "Іван", LastName = "Комірник", TenantId = tenant.Id, EmailConfirmed = true };
+        await _userManager.CreateAsync(worker, "Worker123!");
+        await _userManager.AddToRoleAsync(worker, "Worker");
+
+        // 3. Склади (Київ та Львів)
+        var whKyiv = new Domain.Entities.Warehouse { Id = Guid.NewGuid(), TenantId = tenant.Id, Name = "Київський Розподільчий Центр", Address = "Київ, вул. Велика Окружна" };
+        var whLviv = new Domain.Entities.Warehouse { Id = Guid.NewGuid(), TenantId = tenant.Id, Name = "Львівський Хаб", Address = "Львів, вул. Стрийська" };
+        _context.Warehouses.AddRange(whKyiv, whLviv);
         await _context.SaveChangesAsync();
 
-        var zone = new Zone { TenantId = tenant.Id, WarehouseId = warehouse.Id, Name = "Зона А (Стелажі)" };
-        _context.Zones.Add(zone);
+        // 4. Зони та Локації для Києва
+        var zoneA = new Zone { Id = Guid.NewGuid(), TenantId = tenant.Id, WarehouseId = whKyiv.Id, Name = "Зона Стелажного Зберігання" };
+        var zoneRec = new Zone { Id = Guid.NewGuid(), TenantId = tenant.Id, WarehouseId = whKyiv.Id, Name = "Зона Приймання" };
+        _context.Zones.AddRange(zoneA, zoneRec);
         await _context.SaveChangesAsync();
 
-        var location = new Location 
-        { 
-            TenantId = tenant.Id, 
-            ZoneId = zone.Id, 
-            Code = "A-01-01", 
-            Type = LocationType.Storage 
-        };
-        _context.Locations.Add(location);
+        var loc1 = new Location { Id = Guid.NewGuid(), TenantId = tenant.Id, ZoneId = zoneA.Id, Code = "A-01-01", Type = LocationType.Storage };
+        var locRec = new Location { Id = Guid.NewGuid(), TenantId = tenant.Id, ZoneId = zoneRec.Id, Code = "REC-01", Type = LocationType.Receiving };
+        _context.Locations.AddRange(loc1, locRec);
+
+        // 5. Товари
+        var p1 = new Product { Id = Guid.NewGuid(), TenantId = tenant.Id, Name = "iPhone 15 Pro", SKU = "AAPL-IP15P-256", IsBatchTracked = true };
+        var p2 = new Product { Id = Guid.NewGuid(), TenantId = tenant.Id, Name = "MacBook Pro M3", SKU = "AAPL-MBP-M3-14", IsBatchTracked = false };
+        _context.Products.AddRange(p1, p2);
+        await _context.SaveChangesAsync();
+
+        // 6. Замовлення на прихід (Inbound)
+        var inOrder = new InboundOrder { Id = Guid.NewGuid(), TenantId = tenant.Id, OrderNumber = "IN-GL-001", Status = OrderStatus.InProgress, CreatedAt = DateTime.UtcNow };
+        _context.InboundOrders.Add(inOrder);
+        _context.InboundOrderItems.Add(new InboundOrderItem { Id = Guid.NewGuid(), InboundOrderId = inOrder.Id, ProductId = p1.Id, Quantity = 50, ReceivedQuantity = 0 });
         
-        var product = new Product
-        {
-            TenantId = tenant.Id,
-            Name = "Тестовий Товар",
-            SKU = "TEST-SKU-001",
-            IsBatchTracked = false
-        };
-        _context.Products.Add(product);
+        // 7. Замовлення на відправку (Outbound)
+        var outOrder = new OutboundOrder { Id = Guid.NewGuid(), TenantId = tenant.Id, OrderNumber = "OUT-GL-001", CustomerName = "Магазин Епл-Світ", Status = OrderStatus.Draft, CreatedAt = DateTime.UtcNow };
+        _context.OutboundOrders.Add(outOrder);
+        _context.OutboundOrderItems.Add(new OutboundOrderItem { Id = Guid.NewGuid(), OutboundOrderId = outOrder.Id, ProductId = p2.Id, Quantity = 5, ShippedQuantity = 0 });
+
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedTenantTwoAsync()
+    {
+        // 1. Тенант 2
+        var tenant = new Tenant { Id = Guid.NewGuid(), Name = "Fast Ship Co" };
+        _context.Tenants.Add(tenant);
+        await _context.SaveChangesAsync();
+
+        // 2. Користувач
+        var admin = new AppUser { Id = Guid.NewGuid(), UserName = "admin@fastship.com", Email = "admin@fastship.com", FirstName = "Дмитро", LastName = "Одеса", TenantId = tenant.Id, EmailConfirmed = true };
+        await _userManager.CreateAsync(admin, "Admin123!");
+        await _userManager.AddToRoleAsync(admin, "Admin");
+
+        // 3. Склад Одеса
+        var whOdesa = new Domain.Entities.Warehouse { Id = Guid.NewGuid(), TenantId = tenant.Id, Name = "Одеський Термінал", Address = "Одеса, Морський Порт" };
+        _context.Warehouses.Add(whOdesa);
+        await _context.SaveChangesAsync();
+
+        var zoneCool = new Zone { Id = Guid.NewGuid(), TenantId = tenant.Id, WarehouseId = whOdesa.Id, Name = "Холодильна Камера" };
+        _context.Zones.Add(zoneCool);
+        await _context.SaveChangesAsync();
+
+        _context.Locations.Add(new Location { Id = Guid.NewGuid(), TenantId = tenant.Id, ZoneId = zoneCool.Id, Code = "COLD-01", Type = LocationType.Storage });
+
+        // 4. Товар
+        var p3 = new Product { Id = Guid.NewGuid(), TenantId = tenant.Id, Name = "Енергетик Red Bull", SKU = "DRINK-RB-033", IsBatchTracked = true };
+        _context.Products.Add(p3);
+        await _context.SaveChangesAsync();
+
+        // 5. Замовлення
+        var inOrder = new InboundOrder { Id = Guid.NewGuid(), TenantId = tenant.Id, OrderNumber = "IN-FS-99", Status = OrderStatus.Draft, CreatedAt = DateTime.UtcNow };
+        _context.InboundOrders.Add(inOrder);
+        _context.InboundOrderItems.Add(new InboundOrderItem { Id = Guid.NewGuid(), InboundOrderId = inOrder.Id, ProductId = p3.Id, Quantity = 1000, ReceivedQuantity = 0 });
 
         await _context.SaveChangesAsync();
     }

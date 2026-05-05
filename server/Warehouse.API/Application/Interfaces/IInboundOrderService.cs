@@ -5,8 +5,8 @@ namespace Warehouse.API.Application.Interfaces;
 
 public interface IInboundOrderService
 {
-    Task<IEnumerable<InboundOrder>> GetAllAsync(Guid tenantId);
-    Task<InboundOrder?> GetByIdAsync(Guid tenantId, Guid id);
-    Task<InboundOrder> CreateAsync(Guid tenantId, InboundOrderRequest request);
-    Task<bool> DeleteAsync(Guid tenantId, Guid id);
+    Task<IEnumerable<InboundOrder>> GetAllAsync();
+    Task<InboundOrder?> GetByIdAsync(Guid id);
+    Task<InboundOrder> CreateAsync(InboundOrderRequest request);
+    Task<bool> DeleteAsync(Guid id);
 }

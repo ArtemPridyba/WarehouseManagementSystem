@@ -1,64 +1,42 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Warehouse.API.Application.DTOs.MasterData;
 using Warehouse.API.Application.Interfaces;
-using Warehouse.API.Domain.Entities;
-using Warehouse.API.Infrastructure.Data;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class LocationsController : ControllerBase
 {
     private readonly IStructureService _structureService;
-    private readonly ApplicationDbContext _context;
-
-    public LocationsController(IStructureService structureService, ApplicationDbContext context)
-    {
-        _structureService = structureService;
-        _context = context;
-    }
-
-    [HttpGet("{id}")]
-    public async Task<ActionResult<Location>> GetById(Guid id)
-    {
-        var tenant = await _context.Tenants.FirstAsync();
-        var location = await _structureService.GetLocationByIdAsync(tenant.Id, id);
-        if (location == null) return NotFound();
-        return Ok(location);
-    }
+    public LocationsController(IStructureService structureService) => _structureService = structureService;
 
     [HttpGet("zone/{zoneId}")]
-    public async Task<ActionResult<IEnumerable<Location>>> GetByZone(Guid zoneId)
+    public async Task<IActionResult> GetByZone(Guid zoneId) => 
+        Ok(await _structureService.GetLocationsByZoneAsync(zoneId));
+
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(Guid id)
     {
-        var tenant = await _context.Tenants.FirstAsync();
-        var locations = await _structureService.GetLocationsByZoneAsync(tenant.Id, zoneId);
-        return Ok(locations);
+        var location = await _structureService.GetLocationByIdAsync(id);
+        return location == null ? NotFound() : Ok(location);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
-    public async Task<ActionResult<Location>> Create([FromBody] CreateLocationRequest request)
-    {
-        var tenant = await _context.Tenants.FirstAsync();
-        try {
-            var location = await _structureService.CreateLocationAsync(tenant.Id, request);
-            return CreatedAtAction(nameof(GetById), new { id = location.Id }, location);
-        } catch (Exception ex) { return BadRequest(ex.Message); }
-    }
+    public async Task<IActionResult> Create([FromBody] CreateLocationRequest request) => 
+        Ok(await _structureService.CreateLocationAsync(request));
 
+    [Authorize(Roles = "Admin")]
     [HttpPut("{id}")]
-    public async Task<ActionResult<Location>> Update(Guid id, [FromBody] CreateLocationRequest request)
-    {
-        var tenant = await _context.Tenants.FirstAsync();
-        return Ok(await _structureService.UpdateLocationAsync(tenant.Id, id, request));
-    }
+    public async Task<IActionResult> Update(Guid id, [FromBody] CreateLocationRequest request) => 
+        Ok(await _structureService.UpdateLocationAsync(id, request));
 
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var tenant = await _context.Tenants.FirstAsync();
-        try {
-            await _structureService.DeleteLocationAsync(tenant.Id, id);
-            return NoContent();
-        } catch (Exception ex) { return BadRequest(ex.Message); }
+        try { return await _structureService.DeleteLocationAsync(id) ? NoContent() : NotFound(); }
+        catch (Exception ex) { return BadRequest(ex.Message); }
     }
 }

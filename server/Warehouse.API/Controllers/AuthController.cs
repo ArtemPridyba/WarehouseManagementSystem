@@ -63,4 +63,16 @@ public class AuthController : ControllerBase
             return BadRequest(ex.Message);
         }
     }
+    
+    [Authorize(Roles = "Admin")]
+    [HttpGet("employees")]
+    public async Task<IActionResult> GetEmployees()
+    {
+        var tenantIdClaim = User.FindFirst("TenantId")?.Value;
+        if (string.IsNullOrEmpty(tenantIdClaim)) return Unauthorized();
+    
+        var tenantId = Guid.Parse(tenantIdClaim);
+        var employees = await _authService.GetEmployeesAsync(tenantId);
+        return Ok(employees);
+    }
 }

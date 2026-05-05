@@ -16,35 +16,33 @@ public class OutboundOrderService : IOutboundOrderService
         _context = context;
     }
 
-    public async Task<IEnumerable<OutboundOrder>> GetAllAsync(Guid tenantId)
+    public async Task<IEnumerable<OutboundOrder>> GetAllAsync()
     {
         return await _context.OutboundOrders
             .Include(o => o.Items)
-            .Where(o => o.TenantId == tenantId)
+                .ThenInclude(i => i.Product) 
             .OrderByDescending(o => o.CreatedAt)
             .AsNoTracking()
             .ToListAsync();
     }
 
-    public async Task<OutboundOrder?> GetByIdAsync(Guid tenantId, Guid id)
+    public async Task<OutboundOrder?> GetByIdAsync(Guid id)
     {
         return await _context.OutboundOrders
             .Include(o => o.Items)
-            .ThenInclude(i => i.Product)
-            .FirstOrDefaultAsync(o => o.Id == id && o.TenantId == tenantId);
+                .ThenInclude(i => i.Product)
+            .FirstOrDefaultAsync(o => o.Id == id);
     }
 
-    public async Task<OutboundOrder> CreateAsync(Guid tenantId, OutboundOrderRequest request)
+    public async Task<OutboundOrder> CreateAsync(OutboundOrderRequest request)
     {
-        // Перевірка на унікальність номера замовлення
         var exists = await _context.OutboundOrders
-            .AnyAsync(o => o.TenantId == tenantId && o.OrderNumber == request.OrderNumber);
+            .AnyAsync(o => o.OrderNumber == request.OrderNumber);
         
         if (exists) throw new Exception($"Вихідне замовлення {request.OrderNumber} вже існує");
 
         var order = new OutboundOrder
         {
-            TenantId = tenantId,
             OrderNumber = request.OrderNumber,
             CustomerName = request.CustomerName,
             Status = OrderStatus.Draft,
@@ -58,14 +56,13 @@ public class OutboundOrderService : IOutboundOrderService
         };
 
         _context.OutboundOrders.Add(order);
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(); 
         return order;
     }
 
-    public async Task<bool> DeleteAsync(Guid tenantId, Guid id)
+    public async Task<bool> DeleteAsync(Guid id)
     {
-        var order = await _context.OutboundOrders
-            .FirstOrDefaultAsync(o => o.Id == id && o.TenantId == tenantId);
+        var order = await _context.OutboundOrders.FirstOrDefaultAsync(o => o.Id == id);
 
         if (order == null) return false;
 
