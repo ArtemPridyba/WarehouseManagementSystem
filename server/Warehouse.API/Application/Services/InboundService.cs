@@ -48,7 +48,9 @@ public class InboundService : IInboundService
                     {
                         ProductId = request.ProductId,
                         BatchNumber = request.BatchNumber,
-                        ExpirationDate = request.ExpirationDate
+                        ExpirationDate = request.ExpirationDate.HasValue
+                            ? DateTime.SpecifyKind(request.ExpirationDate.Value, DateTimeKind.Utc)
+                            : null
                     };
                     _context.Batches.Add(batch);
                     await _context.SaveChangesAsync(); 
