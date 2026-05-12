@@ -28,6 +28,7 @@ public class InventoryController : ControllerBase
             SKU = s.Product?.SKU,
             Location = s.Location?.Code,
             LocationId = s.LocationId,
+            ZoneName = s.Location?.Zone?.Name,
             Batch = s.Batch?.BatchNumber,
             BatchId = s.BatchId,
             ExpiryDate = s.Batch?.ExpirationDate,

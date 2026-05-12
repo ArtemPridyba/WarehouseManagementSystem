@@ -29,6 +29,7 @@ export interface CreateEmployeeRequest {
 }
 
 export interface CurrentUser {
+    id: string;
     email: string;
     tenantId: string;
     fullName: string;

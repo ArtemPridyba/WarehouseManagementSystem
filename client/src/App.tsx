@@ -10,6 +10,8 @@ import UsersPage from './pages/UsersPage';
 import InboundPage from './pages/InboundPage';
 import OutboundPage from './pages/OutboundPage';
 import RegisterPage from './pages/auth/RegisterPage';
+import InventoryPage from './pages/InventoryPage';
+import WorkOrdersPage from './pages/WorkOrdersPage';
 
 export default function App() {
     return (
@@ -22,6 +24,8 @@ export default function App() {
                     <Route element={<ProtectedRoute />}>
                         <Route element={<MainLayout />}>
                             <Route path="/dashboard" element={<DashboardPage />} />
+                            <Route path="/tasks" element={<WorkOrdersPage />} />
+                            <Route path="/inventory" element={<InventoryPage />} />
                             <Route path="/warehouse" element={<WarehousePage />} />
                             <Route path="/products"  element={<ProductsPage />} />
                             <Route path="/inbound"   element={<InboundPage />} />

@@ -31,6 +31,7 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, IdentityRole<Guid
     public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
     public DbSet<OutboundOrder> OutboundOrders => Set<OutboundOrder>();
     public DbSet<OutboundOrderItem> OutboundOrderItems => Set<OutboundOrderItem>();
+    public DbSet<WorkOrder> WorkOrders => Set<WorkOrder>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -61,6 +62,19 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, IdentityRole<Guid
         modelBuilder.Entity<InventoryTransaction>().HasQueryFilter(e => e.TenantId == _userContext.TenantId);
         modelBuilder.Entity<InboundOrder>().HasQueryFilter(e => e.TenantId == _userContext.TenantId);
         modelBuilder.Entity<OutboundOrder>().HasQueryFilter(e => e.TenantId == _userContext.TenantId);
+        modelBuilder.Entity<WorkOrder>().HasQueryFilter(e => e.TenantId == _userContext.TenantId);
+
+        modelBuilder.Entity<WorkOrder>()
+            .HasOne(w => w.AssignedTo)
+            .WithMany()
+            .HasForeignKey(w => w.AssignedToId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<WorkOrder>()
+            .HasOne(w => w.CreatedBy)
+            .WithMany()
+            .HasForeignKey(w => w.CreatedById)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

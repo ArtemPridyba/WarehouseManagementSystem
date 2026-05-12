@@ -21,6 +21,7 @@ public class InventoryService : IInventoryService
         return await _context.InventoryBalances
             .Include(b => b.Product)
             .Include(b => b.Location)
+                .ThenInclude(l => l.Zone)
             .Include(b => b.Batch)
             .Where(b => b.Location.Zone.WarehouseId == warehouseId)
             .AsNoTracking()
