@@ -9,4 +9,5 @@ public interface IInventoryService
     Task<IEnumerable<object>> GetAvailableLocationsForProductAsync(Guid productId);
     Task<bool> InternalTransferAsync(TransferRequest request);
     Task<bool> AdjustStockAsync(AdjustmentRequest request);
+    
 }

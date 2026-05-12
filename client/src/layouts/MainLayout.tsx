@@ -10,7 +10,7 @@ import {
     LogOut,
     Menu,
     X,
-    ChevronRight,
+    ChevronRight, Boxes, ClipboardList,
 } from 'lucide-react';
 import { useAuth, useLogout, useRole } from '../hooks/useAuth';
 
@@ -25,7 +25,9 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
     { to: '/dashboard', label: 'Дашборд',      icon: <LayoutDashboard size={18} /> },
+    { to: '/tasks', label: 'Завдання', icon: <ClipboardList size={18} /> },
     { to: '/warehouse', label: 'Топологія',     icon: <Warehouse size={18} /> },
+    { to: '/inventory', label: 'Інвентаризація', icon: <Boxes size={18} /> },
     { to: '/products',  label: 'Товари',        icon: <Package size={18} /> },
     { to: '/inbound',   label: 'Прихід',        icon: <ArrowDownToLine size={18} /> },
     { to: '/outbound',  label: 'Відвантаження', icon: <ArrowUpFromLine size={18} /> },

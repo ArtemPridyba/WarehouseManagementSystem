@@ -33,8 +33,14 @@ export function loadUserFromStorage(): CurrentUser | null {
     }
 }
 
+function getUserIdFromToken(token: string): string {
+    const payload = decodeJwt(token);
+    return (payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] as string) ?? '';
+}
+
 export function saveUserToStorage(response: AuthResponse): CurrentUser {
     const user: CurrentUser = {
+        id: getUserIdFromToken(response.token), // ← додай
         email: response.email,
         tenantId: response.tenantId,
         fullName: response.fullName,

@@ -52,3 +52,44 @@ export interface CreateLocationRequest {
     code: string;
     locationType: LocationType;
 }
+
+export interface StockItem {
+    productId: string;
+    productName: string;
+    sku: string;
+    location: string;
+    locationId: string;
+    zoneName?: string;
+    batch?: string;
+    batchId?: string;
+    expiryDate?: string;
+    quantity: number;
+}
+
+export interface ProductLocationItem {
+    locationCode: string;
+    locationId: string;
+    availableQuantity: number;
+    batchNumber: string;
+    expiryDate?: string;
+}
+
+export interface TransferRequest {
+    productId: string;
+    fromLocationId: string;
+    toLocationId: string;
+    batchId?: string;
+    quantity: number;
+}
+
+export interface AdjustmentRequest {
+    productId: string;
+    locationId: string;
+    batchId?: string;
+    newQuantity: number;
+    reason: string;
+}
+
+export interface LocationWithZone extends LocationEntity {
+    zoneName: string;
+}

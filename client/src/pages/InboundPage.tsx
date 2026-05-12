@@ -11,9 +11,7 @@ import type {
     InboundOrder, InboundOrderRequest, ReceiveProductRequest,
     Product, LocationEntity, OrderStatus,
 } from '../types';
-import {
-    ORDER_STATUS_LABELS, ORDER_STATUS_COLORS,
-} from '../types';
+import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../types';
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
@@ -25,8 +23,8 @@ function StatusBadge({ status }: { status: OrderStatus }) {
                   color: ORDER_STATUS_COLORS[status],
                   border: `1px solid ${ORDER_STATUS_COLORS[status]}30`,
               }}>
-      {ORDER_STATUS_LABELS[status]}
-    </span>
+            {ORDER_STATUS_LABELS[status]}
+        </span>
     );
 }
 
@@ -35,7 +33,7 @@ function StatusBadge({ status }: { status: OrderStatus }) {
 function CreateOrderModal({ products, onClose, onCreate }: {
     products: Product[];
     onClose: () => void;
-    onCreate: (order: InboundOrder) => void;
+    onCreate: () => void;
 }) {
     const [orderNumber, setOrderNumber] = useState('');
     const [items, setItems] = useState([{ productId: '', quantity: 1 }]);
@@ -61,11 +59,12 @@ function CreateOrderModal({ products, onClose, onCreate }: {
         setLoading(true);
         try {
             const req: InboundOrderRequest = { orderNumber, items };
-            const created = await inboundService.create(req);
-            onCreate(created);
+            await inboundService.create(req);
+            onCreate();
             onClose();
         } catch (err: unknown) {
-            setError((err as { response?: { data?: string } })?.response?.data ?? 'Помилка створення');
+            const data = (err as { response?: { data?: unknown } })?.response?.data;
+            setError(typeof data === 'string' ? data : (data as { title?: string })?.title ?? 'Помилка створення');
         } finally {
             setLoading(false);
         }
@@ -91,7 +90,6 @@ function CreateOrderModal({ products, onClose, onCreate }: {
                     </div>
                 )}
 
-                {/* Order number */}
                 <div className="mb-4">
                     <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>
                         Номер замовлення *
@@ -107,19 +105,15 @@ function CreateOrderModal({ products, onClose, onCreate }: {
                     />
                 </div>
 
-                {/* Items */}
                 <div className="mb-4">
                     <div className="flex items-center justify-between mb-2">
-                        <label className="text-xs font-medium" style={{ color: '#94a3b8' }}>
-                            Товари *
-                        </label>
+                        <label className="text-xs font-medium" style={{ color: '#94a3b8' }}>Товари *</label>
                         <button onClick={addItem}
                                 className="text-xs flex items-center gap-1 px-2 py-1 rounded-md"
                                 style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8' }}>
                             <Plus size={12} /> Додати рядок
                         </button>
                     </div>
-
                     <div className="space-y-2">
                         {items.map((item, i) => (
                             <div key={i} className="flex gap-2 items-center">
@@ -127,17 +121,14 @@ function CreateOrderModal({ products, onClose, onCreate }: {
                                     value={item.productId}
                                     onChange={e => updateItem(i, 'productId', e.target.value)}
                                     className="flex-1 rounded-lg px-3 py-2 text-sm outline-none"
-                                    style={{ background: '#1e2130', border: '1px solid rgba(255,255,255,0.1)', color: '#f1f5f9' }}
-                                >
+                                    style={{ background: '#1e2130', border: '1px solid rgba(255,255,255,0.1)', color: '#f1f5f9' }}>
                                     <option value="">— Оберіть товар —</option>
                                     {products.map(p => (
                                         <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
                                     ))}
                                 </select>
                                 <input
-                                    type="number"
-                                    min={0.001}
-                                    step={0.001}
+                                    type="number" min={0.001} step={0.001}
                                     value={item.quantity}
                                     onChange={e => updateItem(i, 'quantity', parseFloat(e.target.value))}
                                     className="w-24 rounded-lg px-3 py-2 text-sm outline-none text-right"
@@ -227,7 +218,8 @@ function ReceiveModal({ order, onClose, onReceive }: {
             onReceive();
             onClose();
         } catch (err: unknown) {
-            setError((err as { response?: { data?: string } })?.response?.data ?? 'Помилка приймання');
+            const data = (err as { response?: { data?: unknown } })?.response?.data;
+            setError(typeof data === 'string' ? data : (data as { title?: string })?.title ?? 'Помилка приймання');
         } finally {
             setLoading(false);
         }
@@ -242,9 +234,7 @@ function ReceiveModal({ order, onClose, onReceive }: {
                  style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.08)' }}>
 
                 <div className="flex items-center justify-between mb-5">
-                    <h2 className="text-base font-semibold" style={{ color: '#f1f5f9' }}>
-                        Прийняти товар
-                    </h2>
+                    <h2 className="text-base font-semibold" style={{ color: '#f1f5f9' }}>Прийняти товар</h2>
                     <button onClick={onClose} style={{ color: '#475569' }}><X size={18} /></button>
                 </div>
 
@@ -261,7 +251,6 @@ function ReceiveModal({ order, onClose, onReceive }: {
                 )}
 
                 <div className="space-y-3">
-                    {/* Товар */}
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Товар *</label>
                         <select value={form.productId}
@@ -276,7 +265,6 @@ function ReceiveModal({ order, onClose, onReceive }: {
                         </select>
                     </div>
 
-                    {/* Склад */}
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Склад *</label>
                         <select value={selectedWarehouse}
@@ -288,7 +276,6 @@ function ReceiveModal({ order, onClose, onReceive }: {
                         </select>
                     </div>
 
-                    {/* Комірка */}
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Комірка *</label>
                         <select value={form.locationId}
@@ -301,7 +288,6 @@ function ReceiveModal({ order, onClose, onReceive }: {
                         </select>
                     </div>
 
-                    {/* Кількість */}
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Кількість *</label>
                         <input type="number" min={0.001} step={0.001}
@@ -314,7 +300,6 @@ function ReceiveModal({ order, onClose, onReceive }: {
                         />
                     </div>
 
-                    {/* Batch (якщо товар batch tracked) */}
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>
@@ -379,31 +364,24 @@ function OrderRow({ order, isAdmin, onDelete, onReceive }: {
     return (
         <div className="rounded-xl overflow-hidden"
              style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
-
-            {/* Header */}
-            <div
-                className="flex items-center gap-4 px-4 py-3 cursor-pointer"
-                style={{ background: '#13151f' }}
-                onClick={() => setExpanded(p => !p)}
-            >
-        <span style={{ color: '#334155' }}>
-          {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-        </span>
+            <div className="flex items-center gap-4 px-4 py-3 cursor-pointer"
+                 style={{ background: '#13151f' }}
+                 onClick={() => setExpanded(p => !p)}>
+                <span style={{ color: '#334155' }}>
+                    {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </span>
                 <span className="text-sm font-mono font-medium flex-1" style={{ color: '#f1f5f9' }}>
-          {order.orderNumber}
-        </span>
+                    {order.orderNumber}
+                </span>
                 <span className="text-xs" style={{ color: '#475569' }}>
-          {order.items.length} поз.
-        </span>
+                    {order.items.length} поз.
+                </span>
                 <StatusBadge status={order.status} />
-
                 <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                     {order.status !== 'Completed' && order.status !== 'Cancelled' && (
-                        <button
-                            onClick={onReceive}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-                            style={{ background: 'rgba(45,212,191,0.1)', color: '#2dd4bf', border: '1px solid rgba(45,212,191,0.2)' }}
-                        >
+                        <button onClick={onReceive}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+                                style={{ background: 'rgba(45,212,191,0.1)', color: '#2dd4bf', border: '1px solid rgba(45,212,191,0.2)' }}>
                             <PackageCheck size={13} /> Прийняти
                         </button>
                     )}
@@ -417,7 +395,6 @@ function OrderRow({ order, isAdmin, onDelete, onReceive }: {
                 </div>
             </div>
 
-            {/* Items */}
             {expanded && (
                 <div style={{ background: 'rgba(0,0,0,0.2)', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
                     <div className="grid text-xs px-4 py-2"
@@ -434,8 +411,8 @@ function OrderRow({ order, isAdmin, onDelete, onReceive }: {
                             <span className="text-right" style={{
                                 color: item.receivedQuantity >= item.quantity ? '#2dd4bf' : '#f59e0b'
                             }}>
-                {item.receivedQuantity}
-              </span>
+                                {item.receivedQuantity}
+                            </span>
                         </div>
                     ))}
                 </div>
@@ -454,17 +431,31 @@ export default function InboundPage() {
     const [createModal, setCreateModal] = useState(false);
     const [receiveOrder, setReceiveOrder] = useState<InboundOrder | null>(null);
 
-    async function load() {
+    async function refresh() {
         const [o, p] = await Promise.all([
             inboundService.getAll(),
             productService.getAll(),
         ]);
         setOrders(o);
         setProducts(p);
-        setLoading(false);
     }
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => {
+        let mounted = true;
+        async function init() {
+            const [o, p] = await Promise.all([
+                inboundService.getAll(),
+                productService.getAll(),
+            ]);
+            if (mounted) {
+                setOrders(o);
+                setProducts(p);
+                setLoading(false);
+            }
+        }
+        init();
+        return () => { mounted = false; };
+    }, []);
 
     async function handleDelete(id: string) {
         await inboundService.delete(id);
@@ -477,18 +468,17 @@ export default function InboundPage() {
                 <CreateOrderModal
                     products={products}
                     onClose={() => setCreateModal(false)}
-                    onCreate={order => setOrders(p => [order, ...p])}
+                    onCreate={refresh}
                 />
             )}
             {receiveOrder && (
                 <ReceiveModal
                     order={receiveOrder}
                     onClose={() => setReceiveOrder(null)}
-                    onReceive={load}
+                    onReceive={refresh}
                 />
             )}
 
-            {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-xl font-bold" style={{ color: '#f1f5f9' }}>Прихід товарів</h1>
@@ -505,7 +495,6 @@ export default function InboundPage() {
                 )}
             </div>
 
-            {/* List */}
             {loading ? (
                 <div className="flex items-center justify-center h-48">
                     <Loader2 size={28} className="animate-spin" style={{ color: '#6366f1' }} />
