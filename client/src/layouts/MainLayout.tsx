@@ -10,7 +10,10 @@ import {
     LogOut,
     Menu,
     X,
-    ChevronRight, Boxes, ClipboardList,
+    ChevronRight,
+    Boxes,
+    ClipboardList,
+    History,
 } from 'lucide-react';
 import { useAuth, useLogout, useRole } from '../hooks/useAuth';
 
@@ -24,14 +27,15 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-    { to: '/dashboard', label: 'Дашборд',      icon: <LayoutDashboard size={18} /> },
-    { to: '/tasks', label: 'Завдання', icon: <ClipboardList size={18} /> },
-    { to: '/warehouse', label: 'Топологія',     icon: <Warehouse size={18} /> },
-    { to: '/inventory', label: 'Інвентаризація', icon: <Boxes size={18} /> },
-    { to: '/products',  label: 'Товари',        icon: <Package size={18} /> },
-    { to: '/inbound',   label: 'Прихід',        icon: <ArrowDownToLine size={18} /> },
-    { to: '/outbound',  label: 'Відвантаження', icon: <ArrowUpFromLine size={18} /> },
-    { to: '/users',     label: 'Користувачі',   icon: <Users size={18} />, adminOnly: true },
+    { to: '/dashboard',    label: 'Дашборд',       icon: <LayoutDashboard size={18} /> },
+    { to: '/tasks',        label: 'Завдання',       icon: <ClipboardList size={18} /> },
+    { to: '/warehouse',    label: 'Топологія',      icon: <Warehouse size={18} /> },
+    { to: '/inventory',    label: 'Інвентаризація', icon: <Boxes size={18} /> },
+    { to: '/transactions', label: 'Історія',        icon: <History size={18} /> },
+    { to: '/products',     label: 'Товари',         icon: <Package size={18} /> },
+    { to: '/inbound',      label: 'Прихід',         icon: <ArrowDownToLine size={18} /> },
+    { to: '/outbound',     label: 'Відвантаження',  icon: <ArrowUpFromLine size={18} /> },
+    { to: '/users',        label: 'Користувачі',    icon: <Users size={18} />, adminOnly: true },
 ];
 
 // ─── Компонент ────────────────────────────────────────────────────────────────
@@ -67,7 +71,10 @@ export default function MainLayout() {
                 style={{ background: '#13151f', borderRight: '1px solid rgba(255,255,255,0.06)' }}
             >
                 {/* Лого */}
-                <div className="flex items-center gap-3 px-4 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <div
+                    className="flex items-center gap-3 px-4 py-5"
+                    style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                >
                     <div
                         className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
                         style={{ background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)' }}
@@ -79,8 +86,6 @@ export default function MainLayout() {
                             WMS Pro
                         </span>
                     )}
-
-                    {/* Collapse button — тільки desktop */}
                     <button
                         onClick={() => setCollapsed(p => !p)}
                         className="hidden lg:flex ml-auto rounded-md p-1 transition-colors"
@@ -88,7 +93,10 @@ export default function MainLayout() {
                     >
                         <ChevronRight
                             size={16}
-                            style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 0.3s' }}
+                            style={{
+                                transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)',
+                                transition: 'transform 0.3s',
+                            }}
                         />
                     </button>
                 </div>
@@ -102,10 +110,7 @@ export default function MainLayout() {
                             onClick={() => setMobileOpen(false)}
                             className={({ isActive }) => `
                                 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all
-                                ${isActive
-                                ? 'text-white'
-                                : 'hover:text-white'
-                            }
+                                ${isActive ? 'text-white' : 'hover:text-white'}
                             `}
                             style={({ isActive }) => ({
                                 background: isActive ? 'rgba(99,102,241,0.15)' : 'transparent',
@@ -122,7 +127,10 @@ export default function MainLayout() {
                 {/* Юзер + логаут */}
                 <div className="px-2 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                     {!collapsed && (
-                        <div className="px-3 py-2 mb-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                        <div
+                            className="px-3 py-2 mb-2 rounded-lg"
+                            style={{ background: 'rgba(255,255,255,0.03)' }}
+                        >
                             <p className="text-xs font-medium truncate" style={{ color: '#f1f5f9' }}>
                                 {user?.fullName}
                             </p>
@@ -162,7 +170,6 @@ export default function MainLayout() {
                     className="flex items-center gap-4 px-6 py-4 shrink-0"
                     style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#13151f' }}
                 >
-                    {/* Mobile burger */}
                     <button
                         className="lg:hidden p-1 rounded-md"
                         style={{ color: '#475569' }}
@@ -173,10 +180,13 @@ export default function MainLayout() {
 
                     <div className="flex-1" />
 
-                    {/* Tenant badge */}
                     <div
                         className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs"
-                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#475569' }}
+                        style={{
+                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            color: '#475569',
+                        }}
                     >
                         <span>Tenant:</span>
                         <span style={{ color: '#94a3b8' }}>{user?.tenantId?.slice(0, 8)}…</span>

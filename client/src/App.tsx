@@ -12,6 +12,7 @@ import OutboundPage from './pages/OutboundPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import InventoryPage from './pages/InventoryPage';
 import WorkOrdersPage from './pages/WorkOrdersPage';
+import TransactionHistoryPage from './pages/TransactionHistoryPage';
 
 export default function App() {
     return (
@@ -30,6 +31,7 @@ export default function App() {
                             <Route path="/products"  element={<ProductsPage />} />
                             <Route path="/inbound"   element={<InboundPage />} />
                             <Route path="/outbound"  element={<OutboundPage />} />
+                            <Route path="/transactions" element={<TransactionHistoryPage />} />
                         </Route>
                     </Route>
 

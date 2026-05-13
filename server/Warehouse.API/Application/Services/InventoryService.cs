@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Warehouse.API.Application.DTOs.Common;
 using Warehouse.API.Application.DTOs.Inventory;
 using Warehouse.API.Application.Interfaces;
 using Warehouse.API.Domain.Entities;
@@ -166,5 +167,50 @@ public class InventoryService : IInventoryService
             await transaction.RollbackAsync();
             throw;
         }
+    }
+    
+    public async Task<PagedResult<InventoryTransactionDto>> GetTransactionsAsync(GetTransactionsQuery query)
+    {
+        var q = _context.InventoryTransactions
+            .Include(t => t.Product)
+            .Include(t => t.FromLocation).ThenInclude(l => l!.Zone)
+            .Include(t => t.ToLocation).ThenInclude(l => l!.Zone)
+            .Include(t => t.Batch)
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (query.Type.HasValue)
+            q = q.Where(t => t.Type == query.Type.Value);
+
+        if (query.From.HasValue)
+            q = q.Where(t => t.CreatedAt >= query.From.Value);
+
+        if (query.To.HasValue)
+            q = q.Where(t => t.CreatedAt <= query.To.Value.AddDays(1));
+
+        if (query.WarehouseId.HasValue)
+            q = q.Where(t =>
+                (t.FromLocation != null && t.FromLocation.Zone.WarehouseId == query.WarehouseId.Value) ||
+                (t.ToLocation   != null && t.ToLocation.Zone.WarehouseId   == query.WarehouseId.Value));
+
+        var projected = q
+            .OrderByDescending(t => t.CreatedAt)
+            .Select(t => new InventoryTransactionDto
+            {
+                Id           = t.Id,
+                ProductName  = t.Product.Name,
+                SKU          = t.Product.SKU,
+                Type         = t.Type.ToString(),
+                Quantity     = t.Quantity,
+                FromLocation = t.FromLocation != null ? t.FromLocation.Code : null,
+                FromZone     = t.FromLocation != null ? t.FromLocation.Zone.Name : null,
+                ToLocation   = t.ToLocation   != null ? t.ToLocation.Code   : null,
+                ToZone       = t.ToLocation   != null ? t.ToLocation.Zone.Name   : null,
+                BatchNumber  = t.Batch        != null ? t.Batch.BatchNumber  : null,
+                Reference    = t.Reference,
+                CreatedAt    = t.CreatedAt,
+            });
+
+        return await projected.ToPagedResultAsync(query);
     }
 }

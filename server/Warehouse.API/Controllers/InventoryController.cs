@@ -80,4 +80,11 @@ public class InventoryController : ControllerBase
             return BadRequest(ex.Message);
         }
     }
+    
+    [HttpGet("transactions")]
+    public async Task<IActionResult> GetTransactions([FromQuery] GetTransactionsQuery query)
+    {
+        var result = await _inventoryService.GetTransactionsAsync(query);
+        return Ok(result);
+    }
 }
