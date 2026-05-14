@@ -16,7 +16,7 @@ import { useAuth, useRole } from '../hooks/useAuth';
 import type {
     WorkOrderDto, CreateWorkOrderRequest, WorkOrderStatus,
     WorkOrderType, WorkOrderPriority, EmployeeDto,
-    LocationEntity, InboundOrder, OutboundOrder,
+    LocationEntity, InboundOrder, OutboundOrder, ProductLocationItem,
 } from '../types';
 import {
     WORK_ORDER_TYPE_LABELS, WORK_ORDER_STATUS_LABELS,
@@ -121,18 +121,26 @@ function CreateModal({ employees, onClose, onCreate }: {
         dueDate: '',
     });
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError]     = useState<string | null>(null);
 
     const [inboundOrders, setInboundOrders]   = useState<InboundOrder[]>([]);
     const [outboundOrders, setOutboundOrders] = useState<OutboundOrder[]>([]);
     const [products, setProducts]             = useState<{ id: string; name: string; sku: string }[]>([]);
     const [warehouses, setWarehouses]         = useState<{ id: string; name: string }[]>([]);
-    const [fromLocations, setFromLocations]   = useState<LocationEntity[]>([]);
+
+    // fromLocations зберігає доступну кількість для Transfer
+    const [fromLocations, setFromLocations]   = useState<(LocationEntity & { availableQuantity: number })[]>([]);
     const [toLocations, setToLocations]       = useState<LocationEntity[]>([]);
     const [selectedFromWarehouse, setSelectedFromWarehouse] = useState('');
     const [selectedToWarehouse, setSelectedToWarehouse]     = useState('');
 
-    // Скидаємо специфічні поля і підвантажуємо дані при зміні типу
+    // Для Transfer — тільки склади де є товар
+    const [productLocations, setProductLocations]     = useState<ProductLocationItem[]>([]);
+    const [availableWarehouses, setAvailableWarehouses] = useState<{ id: string; name: string }[]>([]);
+    const [locationsLoading, setLocationsLoading]     = useState(false);
+
+    // ── Скидаємо поля при зміні типу ──────────────────────────────────────────
+
     useEffect(() => {
         setForm(p => ({
             ...p,
@@ -147,6 +155,8 @@ function CreateModal({ employees, onClose, onCreate }: {
         setToLocations([]);
         setSelectedFromWarehouse('');
         setSelectedToWarehouse('');
+        setProductLocations([]);
+        setAvailableWarehouses([]);
 
         if (form.type === 'Receive') {
             inboundService.getAll().then(data =>
@@ -166,6 +176,61 @@ function CreateModal({ employees, onClose, onCreate }: {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [form.type]);
+
+    // ── Для Transfer: при виборі товару підвантажуємо доступні локації ─────────
+
+    useEffect(() => {
+        if (form.type !== 'Transfer' || !form.productId) {
+            setProductLocations([]);
+            setAvailableWarehouses([]);
+            setFromLocations([]);
+            setSelectedFromWarehouse('');
+            setForm(p => ({ ...p, fromLocationId: undefined }));
+            return;
+        }
+
+        async function loadProductLocations() {
+            setLocationsLoading(true);
+            try {
+                const [locs, allWarehouses] = await Promise.all([
+                    inventoryService.getProductLocations(form.productId!),
+                    warehouseService.getAll(),
+                ]);
+                setProductLocations(locs);
+
+                if (locs.length === 0) {
+                    setAvailableWarehouses([]);
+                    return;
+                }
+
+                const locationIds = new Set(locs.map(l => l.locationId));
+                const matched: { id: string; name: string }[] = [];
+
+                for (const wh of allWarehouses) {
+                    const zones = await warehouseService.getZones(wh.id);
+                    for (const zone of zones) {
+                        const zoneLocs = await warehouseService.getLocations(zone.id);
+                        const hasProduct = zoneLocs.some(l => locationIds.has(l.id));
+                        if (hasProduct && !matched.find(w => w.id === wh.id)) {
+                            matched.push({ id: wh.id, name: wh.name });
+                        }
+                    }
+                }
+
+                setAvailableWarehouses(matched);
+                setSelectedFromWarehouse('');
+                setFromLocations([]);
+                setForm(p => ({ ...p, fromLocationId: undefined }));
+            } finally {
+                setLocationsLoading(false);
+            }
+        }
+
+        loadProductLocations();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [form.productId, form.type]);
+
+    // ── Handlers ───────────────────────────────────────────────────────────────
 
     function handleInboundOrderChange(orderId: string) {
         const order = inboundOrders.find(o => o.id === orderId);
@@ -187,7 +252,7 @@ function CreateModal({ employees, onClose, onCreate }: {
         }));
     }
 
-    async function loadLocations(warehouseId: string): Promise<LocationEntity[]> {
+    async function loadAllLocations(warehouseId: string): Promise<LocationEntity[]> {
         const zones = await warehouseService.getZones(warehouseId);
         const all: LocationEntity[] = [];
         for (const zone of zones) {
@@ -201,29 +266,67 @@ function CreateModal({ employees, onClose, onCreate }: {
         setSelectedFromWarehouse(warehouseId);
         setFromLocations([]);
         setForm(p => ({ ...p, fromLocationId: undefined }));
-        if (warehouseId) setFromLocations(await loadLocations(warehouseId));
+        if (!warehouseId) return;
+
+        if (form.type === 'Transfer' && productLocations.length > 0) {
+            // Тільки комірки де є товар
+            const locationIds = new Set(productLocations.map(l => l.locationId));
+            const zones = await warehouseService.getZones(warehouseId);
+            const matched: (LocationEntity & { availableQuantity: number })[] = [];
+            for (const zone of zones) {
+                const locs = await warehouseService.getLocations(zone.id);
+                for (const loc of locs) {
+                    if (locationIds.has(loc.id)) {
+                        const pl = productLocations.find(p => p.locationId === loc.id)!;
+                        matched.push({ ...loc, availableQuantity: pl.availableQuantity });
+                    }
+                }
+            }
+            setFromLocations(matched);
+        } else {
+            // Adjust / Count — всі комірки
+            const locs = await loadAllLocations(warehouseId);
+            setFromLocations(locs.map(l => ({ ...l, availableQuantity: 0 })));
+        }
     }
 
     async function handleToWarehouseChange(warehouseId: string) {
         setSelectedToWarehouse(warehouseId);
         setToLocations([]);
         setForm(p => ({ ...p, toLocationId: undefined }));
-        if (warehouseId) setToLocations(await loadLocations(warehouseId));
+        if (warehouseId) setToLocations(await loadAllLocations(warehouseId));
     }
 
-    const inboundOrderItems  = form.inboundOrderId
+    // ── Похідні ────────────────────────────────────────────────────────────────
+
+    const inboundOrderItems = form.inboundOrderId
         ? (inboundOrders.find(o => o.id === form.inboundOrderId)?.items ?? [])
         : [];
     const outboundOrderItems = form.outboundOrderId
         ? (outboundOrders.find(o => o.id === form.outboundOrderId)?.items ?? [])
         : [];
 
+    const selectedFromLocation = fromLocations.find(l => l.id === form.fromLocationId);
+    const quantityExceedsStock = form.type === 'Transfer'
+        && selectedFromLocation
+        && (form.quantity ?? 0) > selectedFromLocation.availableQuantity;
+
+    const dueDateInPast = !!form.dueDate
+        && new Date(form.dueDate) < new Date(new Date().toDateString());
+
     const isValid = (() => {
         if (form.title.trim().length < 3) return false;
+        if (dueDateInPast) return false;
         if (form.type === 'Receive')  return !!form.inboundOrderId && !!form.productId;
         if (form.type === 'Ship')     return !!form.outboundOrderId && !!form.productId;
-        if (form.type === 'Transfer') return !!form.productId && !!form.fromLocationId && !!form.toLocationId && (form.quantity ?? 0) > 0;
-        if (form.type === 'Adjust' || form.type === 'Count') return !!form.productId && !!form.fromLocationId;
+        if (form.type === 'Transfer') {
+            if (!form.productId || !form.fromLocationId || !form.toLocationId) return false;
+            if ((form.quantity ?? 0) <= 0) return false;
+            if (quantityExceedsStock) return false;
+            return true;
+        }
+        if (form.type === 'Adjust' || form.type === 'Count')
+            return !!form.productId && !!form.fromLocationId;
         return true;
     })();
 
@@ -254,6 +357,8 @@ function CreateModal({ employees, onClose, onCreate }: {
 
     const color = TYPE_COLORS[form.type];
 
+    // ── JSX ────────────────────────────────────────────────────────────────────
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
              style={{ background: 'rgba(0,0,0,0.7)' }}>
@@ -274,7 +379,7 @@ function CreateModal({ employees, onClose, onCreate }: {
 
                 <div className="space-y-4">
 
-                    {/* Тип */}
+                    {/* ── Тип ── */}
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>
                             Тип завдання *
@@ -300,9 +405,7 @@ function CreateModal({ employees, onClose, onCreate }: {
                         </div>
                     </div>
 
-                    {/* Динамічні поля по типу */}
-
-                    {/* RECEIVE */}
+                    {/* ── RECEIVE ── */}
                     {form.type === 'Receive' && (
                         <div className="space-y-3 rounded-lg p-3"
                              style={{ background: `${color}08`, border: `1px solid ${color}20` }}>
@@ -355,7 +458,7 @@ function CreateModal({ employees, onClose, onCreate }: {
                         </div>
                     )}
 
-                    {/* SHIP */}
+                    {/* ── SHIP ── */}
                     {form.type === 'Ship' && (
                         <div className="space-y-3 rounded-lg p-3"
                              style={{ background: `${color}08`, border: `1px solid ${color}20` }}>
@@ -408,13 +511,15 @@ function CreateModal({ employees, onClose, onCreate }: {
                         </div>
                     )}
 
-                    {/* TRANSFER */}
+                    {/* ── TRANSFER ── */}
                     {form.type === 'Transfer' && (
                         <div className="space-y-3 rounded-lg p-3"
                              style={{ background: `${color}08`, border: `1px solid ${color}20` }}>
                             <p className="text-xs font-medium flex items-center gap-1.5" style={{ color }}>
                                 <ArrowLeftRight size={13} /> Параметри переміщення
                             </p>
+
+                            {/* Товар */}
                             <div>
                                 <label className="block text-xs mb-1.5" style={{ color: '#94a3b8' }}>Товар *</label>
                                 <select value={form.productId ?? ''}
@@ -426,60 +531,123 @@ function CreateModal({ employees, onClose, onCreate }: {
                                     ))}
                                 </select>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label className="block text-xs mb-1.5" style={{ color: '#94a3b8' }}>Склад (звідки) *</label>
-                                    <select value={selectedFromWarehouse}
-                                            onChange={e => handleFromWarehouseChange(e.target.value)}
-                                            style={selectStyle}>
-                                        <option value="">— Склад —</option>
-                                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                                    </select>
+
+                            {/* Товар обраний але йде завантаження */}
+                            {form.productId && locationsLoading && (
+                                <div className="flex items-center gap-2 text-xs" style={{ color: '#475569' }}>
+                                    <Loader2 size={12} className="animate-spin" />
+                                    Пошук доступних локацій...
                                 </div>
-                                <div>
-                                    <label className="block text-xs mb-1.5" style={{ color: '#94a3b8' }}>Комірка (звідки) *</label>
-                                    <select value={form.fromLocationId ?? ''}
-                                            onChange={e => setForm(p => ({ ...p, fromLocationId: e.target.value || undefined }))}
-                                            disabled={!fromLocations.length}
-                                            style={selectStyle}>
-                                        <option value="">— Комірка —</option>
-                                        {fromLocations.map(l => <option key={l.id} value={l.id}>{l.code}</option>)}
-                                    </select>
+                            )}
+
+                            {/* Товару немає на складі */}
+                            {form.productId && !locationsLoading && availableWarehouses.length === 0 && (
+                                <div className="text-xs px-3 py-2 rounded-lg"
+                                     style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', color: '#f87171' }}>
+                                    Цього товару немає на жодному складі
                                 </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label className="block text-xs mb-1.5" style={{ color: '#94a3b8' }}>Склад (куди) *</label>
-                                    <select value={selectedToWarehouse}
-                                            onChange={e => handleToWarehouseChange(e.target.value)}
-                                            style={selectStyle}>
-                                        <option value="">— Склад —</option>
-                                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs mb-1.5" style={{ color: '#94a3b8' }}>Комірка (куди) *</label>
-                                    <select value={form.toLocationId ?? ''}
-                                            onChange={e => setForm(p => ({ ...p, toLocationId: e.target.value || undefined }))}
-                                            disabled={!toLocations.length}
-                                            style={selectStyle}>
-                                        <option value="">— Комірка —</option>
-                                        {toLocations.map(l => <option key={l.id} value={l.id}>{l.code}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs mb-1.5" style={{ color: '#94a3b8' }}>Кількість *</label>
-                                <input type="number" min={0.001} step={0.001}
-                                       value={form.quantity ?? ''}
-                                       onChange={e => setForm(p => ({ ...p, quantity: parseFloat(e.target.value) || undefined }))}
-                                       style={inputStyle}
-                                />
-                            </div>
+                            )}
+
+                            {/* Склади та комірки де є товар */}
+                            {form.productId && !locationsLoading && availableWarehouses.length > 0 && (
+                                <>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="block text-xs mb-1.5" style={{ color: '#94a3b8' }}>
+                                                Склад (звідки) *
+                                            </label>
+                                            <select value={selectedFromWarehouse}
+                                                    onChange={e => handleFromWarehouseChange(e.target.value)}
+                                                    style={selectStyle}>
+                                                <option value="">— Склад —</option>
+                                                {availableWarehouses.map(w => (
+                                                    <option key={w.id} value={w.id}>{w.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs mb-1.5" style={{ color: '#94a3b8' }}>
+                                                Комірка (звідки) *
+                                            </label>
+                                            <select value={form.fromLocationId ?? ''}
+                                                    onChange={e => setForm(p => ({ ...p, fromLocationId: e.target.value || undefined }))}
+                                                    disabled={!fromLocations.length}
+                                                    style={selectStyle}>
+                                                <option value="">— Комірка —</option>
+                                                {fromLocations.map(l => (
+                                                    <option key={l.id} value={l.id}>
+                                                        {l.code} (є: {l.availableQuantity})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="block text-xs mb-1.5" style={{ color: '#94a3b8' }}>
+                                                Склад (куди) *
+                                            </label>
+                                            <select value={selectedToWarehouse}
+                                                    onChange={e => handleToWarehouseChange(e.target.value)}
+                                                    style={selectStyle}>
+                                                <option value="">— Склад —</option>
+                                                {warehouses.map(w => (
+                                                    <option key={w.id} value={w.id}>{w.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs mb-1.5" style={{ color: '#94a3b8' }}>
+                                                Комірка (куди) *
+                                            </label>
+                                            <select value={form.toLocationId ?? ''}
+                                                    onChange={e => setForm(p => ({ ...p, toLocationId: e.target.value || undefined }))}
+                                                    disabled={!toLocations.length}
+                                                    style={selectStyle}>
+                                                <option value="">— Комірка —</option>
+                                                {toLocations.map(l => (
+                                                    <option key={l.id} value={l.id}>{l.code}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs mb-1.5" style={{ color: '#94a3b8' }}>
+                                            Кількість *
+                                            {selectedFromLocation && (
+                                                <span className="ml-2" style={{ color: '#475569' }}>
+                                                    (доступно:{' '}
+                                                    <span style={{ color: '#2dd4bf' }}>
+                                                        {selectedFromLocation.availableQuantity}
+                                                    </span>)
+                                                </span>
+                                            )}
+                                        </label>
+                                        <input
+                                            type="number" min={0.001} step={0.001}
+                                            value={form.quantity ?? ''}
+                                            onChange={e => setForm(p => ({ ...p, quantity: parseFloat(e.target.value) || undefined }))}
+                                            style={{
+                                                ...inputStyle,
+                                                borderColor: quantityExceedsStock
+                                                    ? 'rgba(248,113,113,0.6)'
+                                                    : 'rgba(255,255,255,0.1)',
+                                            }}
+                                        />
+                                        {quantityExceedsStock && (
+                                            <p className="text-xs mt-1" style={{ color: '#f87171' }}>
+                                                Недостатньо товару. Доступно: {selectedFromLocation!.availableQuantity}
+                                            </p>
+                                        )}
+                                    </div>
+                                </>
+                            )}
                         </div>
                     )}
 
-                    {/* ADJUST / COUNT */}
+                    {/* ── ADJUST / COUNT ── */}
                     {(form.type === 'Adjust' || form.type === 'Count') && (
                         <div className="space-y-3 rounded-lg p-3"
                              style={{ background: `${color}08`, border: `1px solid ${color}20` }}>
@@ -505,7 +673,9 @@ function CreateModal({ employees, onClose, onCreate }: {
                                             onChange={e => handleFromWarehouseChange(e.target.value)}
                                             style={selectStyle}>
                                         <option value="">— Склад —</option>
-                                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                        {warehouses.map(w => (
+                                            <option key={w.id} value={w.id}>{w.name}</option>
+                                        ))}
                                     </select>
                                 </div>
                                 <div>
@@ -515,7 +685,9 @@ function CreateModal({ employees, onClose, onCreate }: {
                                             disabled={!fromLocations.length}
                                             style={selectStyle}>
                                         <option value="">— Комірка —</option>
-                                        {fromLocations.map(l => <option key={l.id} value={l.id}>{l.code}</option>)}
+                                        {fromLocations.map(l => (
+                                            <option key={l.id} value={l.id}>{l.code}</option>
+                                        ))}
                                     </select>
                                 </div>
                             </div>
@@ -535,7 +707,7 @@ function CreateModal({ employees, onClose, onCreate }: {
                         </div>
                     )}
 
-                    {/* Заголовок */}
+                    {/* ── Заголовок ── */}
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>
                             Заголовок *
@@ -550,7 +722,7 @@ function CreateModal({ employees, onClose, onCreate }: {
                         />
                     </div>
 
-                    {/* Опис */}
+                    {/* ── Опис ── */}
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Опис</label>
                         <textarea
@@ -565,10 +737,12 @@ function CreateModal({ employees, onClose, onCreate }: {
                         />
                     </div>
 
-                    {/* Пріоритет + Дедлайн */}
+                    {/* ── Пріоритет + Дедлайн ── */}
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Пріоритет</label>
+                            <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>
+                                Пріоритет
+                            </label>
                             <select value={form.priority}
                                     onChange={e => setForm(p => ({ ...p, priority: e.target.value as WorkOrderPriority }))}
                                     style={selectStyle}>
@@ -578,16 +752,30 @@ function CreateModal({ employees, onClose, onCreate }: {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Дедлайн</label>
-                            <input type="date"
-                                   value={form.dueDate}
-                                   onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))}
-                                   style={inputStyle}
+                            <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>
+                                Дедлайн
+                            </label>
+                            <input
+                                type="date"
+                                value={form.dueDate}
+                                min={new Date().toISOString().split('T')[0]}
+                                onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))}
+                                style={{
+                                    ...inputStyle,
+                                    borderColor: dueDateInPast
+                                        ? 'rgba(248,113,113,0.6)'
+                                        : 'rgba(255,255,255,0.1)',
+                                }}
                             />
+                            {dueDateInPast && (
+                                <p className="text-xs mt-1" style={{ color: '#f87171' }}>
+                                    Дедлайн не може бути в минулому
+                                </p>
+                            )}
                         </div>
                     </div>
 
-                    {/* Виконавець */}
+                    {/* ── Виконавець ── */}
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>
                             Призначити виконавця
