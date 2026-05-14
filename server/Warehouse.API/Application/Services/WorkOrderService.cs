@@ -61,9 +61,29 @@ public class WorkOrderService : IWorkOrderService
     public async Task<IEnumerable<WorkOrderDto>> GetAllAsync(WorkOrderStatus? status = null)
     {
         var query = BaseQuery();
+        
+        if (!await IsAdminAsync())
+        {
+            var userId = _currentUser.UserId;
+            query = query.Where(w => w.AssignedToId == userId);
+        }
+        
         if (status.HasValue)
             query = query.Where(w => w.Status == status.Value);
         return (await query.OrderByDescending(w => w.CreatedAt).ToListAsync()).Select(ToDto);
+    }
+    
+    private async Task<bool> IsAdminAsync()
+    {
+        var userId = _currentUser.UserId;
+        if (userId == null) return false;
+        var user = await _context.Users.FindAsync(userId);
+        return await _context.UserRoles
+            .Join(_context.Roles,
+                ur => ur.RoleId,
+                r => r.Id,
+                (ur, r) => new { ur.UserId, r.Name })
+            .AnyAsync(x => x.UserId == userId && x.Name == "Admin");
     }
 
     public async Task<IEnumerable<WorkOrderDto>> GetMyTasksAsync()
