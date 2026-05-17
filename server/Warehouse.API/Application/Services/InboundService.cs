@@ -10,10 +10,12 @@ namespace Warehouse.API.Application.Services;
 public class InboundService : IInboundService
 {
     private readonly ApplicationDbContext _context;
+    private readonly ICurrentUserContext _currentUser;
 
-    public InboundService(ApplicationDbContext context)
+    public InboundService(ApplicationDbContext context, ICurrentUserContext currentUser)
     {
         _context = context;
+        _currentUser = currentUser;
     }
 
     public async Task<bool> ReceiveProductAsync(ReceiveProductRequest request)
@@ -24,22 +26,20 @@ public class InboundService : IInboundService
         {
             var orderItem = await _context.InboundOrderItems
                 .Include(oi => oi.InboundOrder)
-                .FirstOrDefaultAsync(oi => oi.InboundOrderId == request.InboundOrderId && 
+                .FirstOrDefaultAsync(oi => oi.InboundOrderId == request.InboundOrderId &&
                                           oi.ProductId == request.ProductId);
 
-            if (orderItem == null) 
+            if (orderItem == null)
                 throw new Exception("Товар не знайдено в плані закупівлі!");
 
             if (orderItem.ReceivedQuantity + request.Quantity > orderItem.Quantity)
-            {
                 throw new Exception($"Переприймання заборонено! Очікувана решта: {orderItem.Quantity - orderItem.ReceivedQuantity}");
-            }
 
             Guid? batchId = null;
             if (!string.IsNullOrEmpty(request.BatchNumber))
             {
                 var batch = await _context.Batches
-                    .FirstOrDefaultAsync(b => b.BatchNumber == request.BatchNumber && 
+                    .FirstOrDefaultAsync(b => b.BatchNumber == request.BatchNumber &&
                                              b.ProductId == request.ProductId);
 
                 if (batch == null)
@@ -53,7 +53,7 @@ public class InboundService : IInboundService
                             : null
                     };
                     _context.Batches.Add(batch);
-                    await _context.SaveChangesAsync(); 
+                    await _context.SaveChangesAsync();
                 }
                 batchId = batch.Id;
             }
@@ -83,14 +83,15 @@ public class InboundService : IInboundService
 
             var movement = new InventoryTransaction
             {
-                ProductId = request.ProductId,
+                ProductId      = request.ProductId,
                 FromLocationId = null,
-                ToLocationId = request.LocationId,
-                BatchId = batchId,
-                Quantity = request.Quantity,
-                Type = TransactionType.Inbound,
-                CreatedAt = DateTime.UtcNow,
-                Reference = $"Inbound Order: {orderItem.InboundOrder.OrderNumber}" 
+                ToLocationId   = request.LocationId,
+                BatchId        = batchId,
+                Quantity       = request.Quantity,
+                Type           = TransactionType.Inbound,
+                CreatedAt      = DateTime.UtcNow,
+                Reference      = $"Inbound Order: {orderItem.InboundOrder.OrderNumber}",
+                CreatedByUserId = _currentUser.UserId, 
             };
             _context.InventoryTransactions.Add(movement);
 

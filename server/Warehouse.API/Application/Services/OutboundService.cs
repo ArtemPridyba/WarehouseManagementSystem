@@ -10,10 +10,12 @@ namespace Warehouse.API.Application.Services;
 public class OutboundService : IOutboundService
 {
     private readonly ApplicationDbContext _context;
+    private readonly ICurrentUserContext _currentUser;
 
-    public OutboundService(ApplicationDbContext context)
+    public OutboundService(ApplicationDbContext context, ICurrentUserContext currentUser)
     {
         _context = context;
+        _currentUser = currentUser;
     }
 
     public async Task<bool> ShipProductAsync(ShipProductRequest request)
@@ -24,15 +26,15 @@ public class OutboundService : IOutboundService
         {
             var orderItem = await _context.OutboundOrderItems
                 .Include(oi => oi.OutboundOrder)
-                .FirstOrDefaultAsync(oi => oi.OutboundOrderId == request.OutboundOrderId && 
+                .FirstOrDefaultAsync(oi => oi.OutboundOrderId == request.OutboundOrderId &&
                                           oi.ProductId == request.ProductId);
 
-            if (orderItem == null) 
+            if (orderItem == null)
                 throw new Exception("Товар не знайдено в замовленні на відвантаження!");
 
             if (orderItem.ShippedQuantity + request.Quantity > orderItem.Quantity)
                 throw new Exception($"Перевідвантаження заборонено! Залишилось відвантажити: {orderItem.Quantity - orderItem.ShippedQuantity}");
-            
+
             var balance = await _context.InventoryBalances
                 .FirstOrDefaultAsync(b => b.LocationId == request.LocationId &&
                                          b.ProductId == request.ProductId &&
@@ -40,25 +42,26 @@ public class OutboundService : IOutboundService
 
             if (balance == null || balance.Quantity < request.Quantity)
                 throw new Exception($"Недостатньо товару на локації! Доступно: {(balance?.Quantity ?? 0)}");
-            
+
             balance.Quantity -= request.Quantity;
             if (balance.Quantity == 0) _context.InventoryBalances.Remove(balance);
-            
+
             orderItem.ShippedQuantity += request.Quantity;
-            
+
             var movement = new InventoryTransaction
             {
-                ProductId = request.ProductId,
-                FromLocationId = request.LocationId,
-                ToLocationId = null, 
-                BatchId = request.BatchId,
-                Quantity = request.Quantity,
-                Type = TransactionType.Outbound,
-                CreatedAt = DateTime.UtcNow,
-                Reference = $"Shipment: {orderItem.OutboundOrder.OrderNumber}"
+                ProductId       = request.ProductId,
+                FromLocationId  = request.LocationId,
+                ToLocationId    = null,
+                BatchId         = request.BatchId,
+                Quantity        = request.Quantity,
+                Type            = TransactionType.Outbound,
+                CreatedAt       = DateTime.UtcNow,
+                Reference       = $"Shipment: {orderItem.OutboundOrder.OrderNumber}",
+                CreatedByUserId = _currentUser.UserId, 
             };
             _context.InventoryTransactions.Add(movement);
-            
+
             var allItemsInOrder = await _context.OutboundOrderItems
                 .Where(oi => oi.OutboundOrderId == request.OutboundOrderId)
                 .ToListAsync();

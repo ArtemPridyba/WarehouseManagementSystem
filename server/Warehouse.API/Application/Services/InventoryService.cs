@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Warehouse.API.Application.DTOs.Common;
 using Warehouse.API.Application.DTOs.Inventory;
 using Warehouse.API.Application.Interfaces;
@@ -11,10 +12,17 @@ namespace Warehouse.API.Application.Services;
 public class InventoryService : IInventoryService
 {
     private readonly ApplicationDbContext _context;
+    private readonly ICurrentUserContext _currentUser;
+    private readonly UserManager<AppUser> _userManager;
 
-    public InventoryService(ApplicationDbContext context)
+    public InventoryService(
+        ApplicationDbContext context,
+        ICurrentUserContext currentUser,
+        UserManager<AppUser> userManager)
     {
         _context = context;
+        _currentUser = currentUser;
+        _userManager = userManager;
     }
     
     public async Task<IEnumerable<InventoryBalance>> GetWarehouseStockAsync(Guid warehouseId)
@@ -98,7 +106,8 @@ public class InventoryService : IInventoryService
                 Quantity = request.Quantity,
                 Type = TransactionType.Transfer,
                 CreatedAt = DateTime.UtcNow,
-                Reference = "Internal Transfer"
+                Reference = "Internal Transfer",
+                CreatedByUserId = _currentUser.UserId
             };
             _context.InventoryTransactions.Add(movement);
             
@@ -170,47 +179,63 @@ public class InventoryService : IInventoryService
     }
     
     public async Task<PagedResult<InventoryTransactionDto>> GetTransactionsAsync(GetTransactionsQuery query)
+{
+    var q = _context.InventoryTransactions
+        .Include(t => t.Product)
+        .Include(t => t.FromLocation).ThenInclude(l => l!.Zone)
+        .Include(t => t.ToLocation).ThenInclude(l => l!.Zone)
+        .Include(t => t.Batch)
+        .AsNoTracking()
+        .AsQueryable();
+
+    if (query.Type.HasValue)
+        q = q.Where(t => t.Type == query.Type.Value);
+
+    if (query.From.HasValue)
+        q = q.Where(t => t.CreatedAt >= query.From.Value);
+
+    if (query.To.HasValue)
+        q = q.Where(t => t.CreatedAt <= query.To.Value.AddDays(1));
+
+    if (query.WarehouseId.HasValue)
+        q = q.Where(t =>
+            (t.FromLocation != null && t.FromLocation.Zone.WarehouseId == query.WarehouseId.Value) ||
+            (t.ToLocation   != null && t.ToLocation.Zone.WarehouseId   == query.WarehouseId.Value));
+
+    // Worker бачить тільки свої транзакції
+    var roles = await GetCurrentUserRolesAsync();
+    if (roles.Contains("Worker"))
     {
-        var q = _context.InventoryTransactions
-            .Include(t => t.Product)
-            .Include(t => t.FromLocation).ThenInclude(l => l!.Zone)
-            .Include(t => t.ToLocation).ThenInclude(l => l!.Zone)
-            .Include(t => t.Batch)
-            .AsNoTracking()
-            .AsQueryable();
-
-        if (query.Type.HasValue)
-            q = q.Where(t => t.Type == query.Type.Value);
-
-        if (query.From.HasValue)
-            q = q.Where(t => t.CreatedAt >= query.From.Value);
-
-        if (query.To.HasValue)
-            q = q.Where(t => t.CreatedAt <= query.To.Value.AddDays(1));
-
-        if (query.WarehouseId.HasValue)
-            q = q.Where(t =>
-                (t.FromLocation != null && t.FromLocation.Zone.WarehouseId == query.WarehouseId.Value) ||
-                (t.ToLocation   != null && t.ToLocation.Zone.WarehouseId   == query.WarehouseId.Value));
-
-        var projected = q
-            .OrderByDescending(t => t.CreatedAt)
-            .Select(t => new InventoryTransactionDto
-            {
-                Id           = t.Id,
-                ProductName  = t.Product.Name,
-                SKU          = t.Product.SKU,
-                Type         = t.Type.ToString(),
-                Quantity     = t.Quantity,
-                FromLocation = t.FromLocation != null ? t.FromLocation.Code : null,
-                FromZone     = t.FromLocation != null ? t.FromLocation.Zone.Name : null,
-                ToLocation   = t.ToLocation   != null ? t.ToLocation.Code   : null,
-                ToZone       = t.ToLocation   != null ? t.ToLocation.Zone.Name   : null,
-                BatchNumber  = t.Batch        != null ? t.Batch.BatchNumber  : null,
-                Reference    = t.Reference,
-                CreatedAt    = t.CreatedAt,
-            });
-
-        return await projected.ToPagedResultAsync(query);
+        var userId = _currentUser.UserId;
+        q = q.Where(t => t.CreatedByUserId == userId);
     }
+
+    var projected = q
+        .OrderByDescending(t => t.CreatedAt)
+        .Select(t => new InventoryTransactionDto
+        {
+            Id           = t.Id,
+            ProductName  = t.Product.Name,
+            SKU          = t.Product.SKU,
+            Type         = t.Type.ToString(),
+            Quantity     = t.Quantity,
+            FromLocation = t.FromLocation != null ? t.FromLocation.Code : null,
+            FromZone     = t.FromLocation != null ? t.FromLocation.Zone.Name : null,
+            ToLocation   = t.ToLocation   != null ? t.ToLocation.Code   : null,
+            ToZone       = t.ToLocation   != null ? t.ToLocation.Zone.Name   : null,
+            BatchNumber  = t.Batch        != null ? t.Batch.BatchNumber  : null,
+            Reference    = t.Reference,
+            CreatedAt    = t.CreatedAt,
+        });
+
+    return await projected.ToPagedResultAsync(query);
+}
+
+private async Task<IList<string>> GetCurrentUserRolesAsync()
+{
+    if (_currentUser.UserId == null) return new List<string>();
+    var user = await _context.Users.FindAsync(_currentUser.UserId);
+    if (user == null) return new List<string>();
+    return await _userManager.GetRolesAsync(user);
+}
 }

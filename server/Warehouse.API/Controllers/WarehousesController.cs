@@ -21,17 +21,17 @@ public class WarehousesController : ControllerBase
         return warehouse == null ? NotFound() : Ok(warehouse);
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateWarehouseRequest request) => 
         Ok(await _structureService.CreateWarehouseAsync(request));
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] CreateWarehouseRequest request) => 
         Ok(await _structureService.UpdateWarehouseAsync(id, request));
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id) 
     {

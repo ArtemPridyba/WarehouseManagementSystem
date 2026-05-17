@@ -24,19 +24,28 @@ interface NavItem {
     label: string;
     icon: React.ReactNode;
     adminOnly?: boolean;
+    hideForWorker?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
-    { to: '/dashboard',    label: 'Дашборд',       icon: <LayoutDashboard size={18} /> },
+    { to: '/dashboard',    label: 'Дашборд',       icon: <LayoutDashboard size={18} />, hideForWorker: true },
     { to: '/tasks',        label: 'Завдання',       icon: <ClipboardList size={18} /> },
-    { to: '/warehouse',    label: 'Топологія',      icon: <Warehouse size={18} /> },
-    { to: '/inventory',    label: 'Інвентаризація', icon: <Boxes size={18} /> },
+    { to: '/warehouse',    label: 'Топологія',      icon: <Warehouse size={18} />, hideForWorker: true },
+    { to: '/inventory',    label: 'Інвентаризація', icon: <Boxes size={18} />, hideForWorker: true },
     { to: '/transactions', label: 'Історія',        icon: <History size={18} /> },
-    { to: '/products',     label: 'Товари',         icon: <Package size={18} /> },
+    { to: '/products',     label: 'Товари',         icon: <Package size={18} />, hideForWorker: true },
     { to: '/inbound',      label: 'Прихід',         icon: <ArrowDownToLine size={18} /> },
     { to: '/outbound',     label: 'Відвантаження',  icon: <ArrowUpFromLine size={18} /> },
     { to: '/users',        label: 'Користувачі',    icon: <Users size={18} />, adminOnly: true },
 ];
+
+// ─── Role config ──────────────────────────────────────────────────────────────
+
+const ROLE_CONFIG: Record<string, { bg: string; color: string; label: string }> = {
+    Admin:   { bg: 'rgba(99,102,241,0.15)',  color: '#818cf8', label: 'Адмін' },
+    Manager: { bg: 'rgba(245,158,11,0.15)',  color: '#f59e0b', label: 'Менеджер' },
+    Worker:  { bg: 'rgba(20,184,166,0.15)',  color: '#2dd4bf', label: 'Комірник' },
+};
 
 // ─── Компонент ────────────────────────────────────────────────────────────────
 
@@ -47,7 +56,13 @@ export default function MainLayout() {
     const [collapsed, setCollapsed] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
 
-    const visibleItems = NAV_ITEMS.filter(item => !item.adminOnly || isAdmin);
+    const visibleItems = NAV_ITEMS.filter(item => {
+        if (item.adminOnly && !isAdmin) return false;
+        if (item.hideForWorker && user?.role === 'Worker') return false;
+        return true;
+    });
+
+    const roleConfig = ROLE_CONFIG[user?.role ?? 'Worker'] ?? ROLE_CONFIG.Worker;
 
     return (
         <div className="flex h-screen overflow-hidden" style={{ background: '#0f1117' }}>
@@ -139,12 +154,9 @@ export default function MainLayout() {
                             </p>
                             <span
                                 className="inline-block text-xs px-2 py-0.5 rounded-full mt-1.5"
-                                style={{
-                                    background: isAdmin ? 'rgba(99,102,241,0.15)' : 'rgba(20,184,166,0.15)',
-                                    color: isAdmin ? '#818cf8' : '#2dd4bf',
-                                }}
+                                style={{ background: roleConfig.bg, color: roleConfig.color }}
                             >
-                                {user?.role}
+                                {roleConfig.label}
                             </span>
                         </div>
                     )}
@@ -180,6 +192,15 @@ export default function MainLayout() {
 
                     <div className="flex-1" />
 
+                    {/* Role badge в хедері */}
+                    <div
+                        className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
+                        style={{ background: roleConfig.bg, color: roleConfig.color }}
+                    >
+                        {roleConfig.label}
+                    </div>
+
+                    {/* Tenant badge */}
                     <div
                         className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs"
                         style={{

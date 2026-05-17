@@ -19,7 +19,9 @@ function getRoleFromToken(token: string): Role {
         (payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] as string) ??
         (payload['role'] as string) ??
         'Worker';
-    return role === 'Admin' ? 'Admin' : 'Worker';
+    if (role === 'Admin') return 'Admin';
+    if (role === 'Manager') return 'Manager';
+    return 'Worker';
 }
 
 // ─── Storage helpers ──────────────────────────────────────────────────────────

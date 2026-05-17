@@ -1,4 +1,4 @@
-﻿export type Role = 'Admin' | 'Worker';
+﻿export type Role = 'Admin' | 'Manager' | 'Worker';
 
 export interface AuthResponse {
     token: string;
@@ -25,7 +25,7 @@ export interface CreateEmployeeRequest {
     lastName: string;
     email: string;
     password: string;
-    role: string;
+    role: 'Manager' | 'Worker';
 }
 
 export interface CurrentUser {

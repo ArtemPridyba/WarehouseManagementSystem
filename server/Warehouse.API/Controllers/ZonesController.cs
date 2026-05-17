@@ -22,17 +22,17 @@ public class ZonesController : ControllerBase
         return zone == null ? NotFound() : Ok(zone);
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateZoneRequest request) => 
         Ok(await _structureService.CreateZoneAsync(request));
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] CreateZoneRequest request) => 
         Ok(await _structureService.UpdateZoneAsync(id, request));
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {
