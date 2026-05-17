@@ -23,4 +23,8 @@ public class InventoryTransaction : BaseEntity, ITenantEntity
     public TransactionType Type { get; set; } // Наприклад: Inbound, Transfer, Outbound
     
     public string? Reference { get; set; } // Номер замовлення або коментар
+    
+    public Guid? CreatedByUserId { get; set; }
+    
+    public AppUser? CreatedByUser { get; set; }
 }

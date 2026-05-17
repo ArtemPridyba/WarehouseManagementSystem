@@ -6,7 +6,7 @@ import {
 import { outboundService } from '../services/outbound.service';
 import { productService } from '../services/product.service';
 import { warehouseService } from '../services/warehouse.service';
-import { useRole } from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth';
 import type {
     OutboundOrder, OutboundOrderRequest, ShipProductRequest,
     Product, LocationEntity, OrderStatus,
@@ -23,8 +23,8 @@ function StatusBadge({ status }: { status: OrderStatus }) {
                   color: ORDER_STATUS_COLORS[status],
                   border: `1px solid ${ORDER_STATUS_COLORS[status]}30`,
               }}>
-      {ORDER_STATUS_LABELS[status]}
-    </span>
+            {ORDER_STATUS_LABELS[status]}
+        </span>
     );
 }
 
@@ -35,11 +35,11 @@ function CreateOrderModal({ products, onClose, onCreate }: {
     onClose: () => void;
     onCreate: (order: OutboundOrder) => void;
 }) {
-    const [orderNumber, setOrderNumber] = useState('');
+    const [orderNumber, setOrderNumber]   = useState('');
     const [customerName, setCustomerName] = useState('');
-    const [items, setItems] = useState([{ productId: '', quantity: 1 }]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [items, setItems]               = useState([{ productId: '', quantity: 1 }]);
+    const [loading, setLoading]           = useState(false);
+    const [error, setError]               = useState<string | null>(null);
 
     function addItem() {
         setItems(p => [...p, { productId: '', quantity: 1 }]);
@@ -64,7 +64,8 @@ function CreateOrderModal({ products, onClose, onCreate }: {
             onCreate(created);
             onClose();
         } catch (err: unknown) {
-            setError((err as { response?: { data?: string } })?.response?.data ?? 'Помилка створення');
+            const data = (err as { response?: { data?: unknown } })?.response?.data;
+            setError(typeof data === 'string' ? data : (data as { title?: string })?.title ?? 'Помилка створення');
         } finally {
             setLoading(false);
         }
@@ -91,7 +92,6 @@ function CreateOrderModal({ products, onClose, onCreate }: {
                 )}
 
                 <div className="space-y-4 mb-4">
-                    {/* Номер */}
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>
                             Номер замовлення *
@@ -106,8 +106,6 @@ function CreateOrderModal({ products, onClose, onCreate }: {
                             onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
                         />
                     </div>
-
-                    {/* Клієнт */}
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>
                             Клієнт *
@@ -124,7 +122,6 @@ function CreateOrderModal({ products, onClose, onCreate }: {
                     </div>
                 </div>
 
-                {/* Items */}
                 <div>
                     <div className="flex items-center justify-between mb-2">
                         <label className="text-xs font-medium" style={{ color: '#94a3b8' }}>Товари *</label>
@@ -195,17 +192,17 @@ function ShipModal({ order, onClose, onShip }: {
     onClose: () => void;
     onShip: () => void;
 }) {
-    const [warehouses, setWarehouses] = useState<{ id: string; name: string }[]>([]);
-    const [locations, setLocations] = useState<LocationEntity[]>([]);
+    const [warehouses, setWarehouses]         = useState<{ id: string; name: string }[]>([]);
+    const [locations, setLocations]           = useState<LocationEntity[]>([]);
     const [selectedWarehouse, setSelectedWarehouse] = useState('');
     const [form, setForm] = useState<ShipProductRequest>({
         outboundOrderId: order.id,
-        productId: order.items[0]?.productId ?? '',
-        locationId: '',
-        quantity: order.items[0]?.quantity ?? 1,
+        productId:       order.items[0]?.productId ?? '',
+        locationId:      '',
+        quantity:        order.items[0]?.quantity ?? 1,
     });
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError]     = useState<string | null>(null);
 
     useEffect(() => {
         warehouseService.getAll().then(data =>
@@ -232,7 +229,8 @@ function ShipModal({ order, onClose, onShip }: {
             onShip();
             onClose();
         } catch (err: unknown) {
-            setError((err as { response?: { data?: string } })?.response?.data ?? 'Помилка відвантаження');
+            const data = (err as { response?: { data?: unknown } })?.response?.data;
+            setError(typeof data === 'string' ? data : (data as { title?: string })?.title ?? 'Помилка відвантаження');
         } finally {
             setLoading(false);
         }
@@ -277,7 +275,6 @@ function ShipModal({ order, onClose, onShip }: {
                 )}
 
                 <div className="space-y-3">
-                    {/* Товар */}
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Товар *</label>
                         <select value={form.productId}
@@ -292,7 +289,6 @@ function ShipModal({ order, onClose, onShip }: {
                         </select>
                     </div>
 
-                    {/* Склад */}
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Склад *</label>
                         <select value={selectedWarehouse}
@@ -304,7 +300,6 @@ function ShipModal({ order, onClose, onShip }: {
                         </select>
                     </div>
 
-                    {/* Комірка */}
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Комірка *</label>
                         <select value={form.locationId}
@@ -317,7 +312,6 @@ function ShipModal({ order, onClose, onShip }: {
                         </select>
                     </div>
 
-                    {/* Кількість */}
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Кількість *</label>
                         <input type="number" min={0.001} step={0.001}
@@ -356,9 +350,9 @@ function ShipModal({ order, onClose, onShip }: {
 
 // ─── Order Row ────────────────────────────────────────────────────────────────
 
-function OrderRow({ order, isAdmin, onDelete, onShip }: {
+function OrderRow({ order, canManage, onDelete, onShip }: {
     order: OutboundOrder;
-    isAdmin: boolean;
+    canManage: boolean;
     onDelete: () => void;
     onShip: () => void;
 }) {
@@ -367,26 +361,24 @@ function OrderRow({ order, isAdmin, onDelete, onShip }: {
     return (
         <div className="rounded-xl overflow-hidden"
              style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
-
             <div className="flex items-center gap-4 px-4 py-3 cursor-pointer"
                  style={{ background: '#13151f' }}
                  onClick={() => setExpanded(p => !p)}>
-        <span style={{ color: '#334155' }}>
-          {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-        </span>
+                <span style={{ color: '#334155' }}>
+                    {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </span>
                 <div className="flex-1 min-w-0">
-          <span className="text-sm font-mono font-medium" style={{ color: '#f1f5f9' }}>
-            {order.orderNumber}
-          </span>
+                    <span className="text-sm font-mono font-medium" style={{ color: '#f1f5f9' }}>
+                        {order.orderNumber}
+                    </span>
                     <span className="text-xs ml-3" style={{ color: '#475569' }}>
-            {order.customerName}
-          </span>
+                        {order.customerName}
+                    </span>
                 </div>
                 <span className="text-xs" style={{ color: '#475569' }}>
-          {order.items.length} поз.
-        </span>
+                    {order.items.length} поз.
+                </span>
                 <StatusBadge status={order.status} />
-
                 <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                     {order.status !== 'Completed' && order.status !== 'Cancelled' && (
                         <button onClick={onShip}
@@ -395,7 +387,7 @@ function OrderRow({ order, isAdmin, onDelete, onShip }: {
                             <SendHorizontal size={13} /> Відвантажити
                         </button>
                     )}
-                    {isAdmin && order.status === 'Draft' && (
+                    {canManage && order.status === 'Draft' && (
                         <button onClick={onDelete} style={{ color: '#475569' }}
                                 onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
                                 onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
@@ -419,10 +411,10 @@ function OrderRow({ order, isAdmin, onDelete, onShip }: {
                             <span style={{ color: '#94a3b8' }}>{item.product?.name ?? '—'}</span>
                             <span className="text-right" style={{ color: '#f1f5f9' }}>{item.quantity}</span>
                             <span className="text-right" style={{
-                                color: item.shippedQuantity >= item.quantity ? '#2dd4bf' : '#f59e0b'
+                                color: item.shippedQuantity >= item.quantity ? '#2dd4bf' : '#f59e0b',
                             }}>
-                {item.shippedQuantity}
-              </span>
+                                {item.shippedQuantity}
+                            </span>
                         </div>
                     ))}
                 </div>
@@ -434,12 +426,14 @@ function OrderRow({ order, isAdmin, onDelete, onShip }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function OutboundPage() {
-    const { isAdmin } = useRole();
-    const [orders, setOrders] = useState<OutboundOrder[]>([]);
+    const { user } = useAuth();
+    const canManage = user?.role === 'Admin' || user?.role === 'Manager';
+
+    const [orders, setOrders]   = useState<OutboundOrder[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [createModal, setCreateModal] = useState(false);
-    const [shipOrder, setShipOrder] = useState<OutboundOrder | null>(null);
+    const [shipOrder, setShipOrder]     = useState<OutboundOrder | null>(null);
 
     async function load() {
         const [o, p] = await Promise.all([
@@ -451,7 +445,22 @@ export default function OutboundPage() {
         setLoading(false);
     }
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => {
+        let mounted = true;
+        async function init() {
+            const [o, p] = await Promise.all([
+                outboundService.getAll(),
+                productService.getAll(),
+            ]);
+            if (mounted) {
+                setOrders(o);
+                setProducts(p);
+                setLoading(false);
+            }
+        }
+        init();
+        return () => { mounted = false; };
+    }, []);
 
     async function handleDelete(id: string) {
         await outboundService.delete(id);
@@ -475,7 +484,6 @@ export default function OutboundPage() {
                 />
             )}
 
-            {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-xl font-bold" style={{ color: '#f1f5f9' }}>Відвантаження</h1>
@@ -483,7 +491,7 @@ export default function OutboundPage() {
                         {orders.length} замовлень
                     </p>
                 </div>
-                {isAdmin && (
+                {canManage && (
                     <button onClick={() => setCreateModal(true)}
                             className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold"
                             style={{ background: '#6366f1', color: '#fff' }}>
@@ -492,7 +500,6 @@ export default function OutboundPage() {
                 )}
             </div>
 
-            {/* List */}
             {loading ? (
                 <div className="flex items-center justify-center h-48">
                     <Loader2 size={28} className="animate-spin" style={{ color: '#6366f1' }} />
@@ -508,7 +515,7 @@ export default function OutboundPage() {
                         <OrderRow
                             key={order.id}
                             order={order}
-                            isAdmin={isAdmin}
+                            canManage={canManage}
                             onDelete={() => handleDelete(order.id)}
                             onShip={() => setShipOrder(order)}
                         />

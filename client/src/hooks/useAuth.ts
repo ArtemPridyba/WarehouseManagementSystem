@@ -39,12 +39,18 @@ export function useLogout() {
 export function useRole() {
     const { user, isAdmin } = useAuthContext();
 
+    const isManager = user?.role === 'Manager';
+    const isWorker  = user?.role === 'Worker';
+    const canManage = user?.role === 'Admin' || user?.role === 'Manager';
+
     return {
         role: user?.role ?? null,
         isAdmin,
-        isWorker: user?.role === 'Worker',
+        isManager,
+        isWorker,
+        canManage,
         can: (action: 'edit' | 'delete' | 'adjust') => {
-            if (['edit', 'delete', 'adjust'].includes(action)) return isAdmin;
+            if (['edit', 'delete', 'adjust'].includes(action)) return canManage;
             return true;
         },
     };

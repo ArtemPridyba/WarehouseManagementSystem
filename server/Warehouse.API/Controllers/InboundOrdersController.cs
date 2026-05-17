@@ -32,7 +32,7 @@ public class InboundOrdersController : ControllerBase
         return Ok(order);
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpPost]
     public async Task<ActionResult<InboundOrder>> Create([FromBody] InboundOrderRequest request)
     {
@@ -47,7 +47,7 @@ public class InboundOrdersController : ControllerBase
         }
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {

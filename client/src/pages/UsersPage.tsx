@@ -6,6 +6,41 @@ import {
 import { authService } from '../services/auth.service';
 import type { EmployeeDto, CreateEmployeeRequest } from '../types';
 
+// ─── Role config ──────────────────────────────────────────────────────────────
+
+const ROLE_CONFIG: Record<string, {
+    bg: string; color: string; border: string;
+    label: string; icon: React.ReactNode;
+}> = {
+    Manager: {
+        bg: 'rgba(245,158,11,0.1)', color: '#f59e0b',
+        border: 'rgba(245,158,11,0.5)', label: 'Менеджер',
+        icon: <Shield size={15} />,
+    },
+    Worker: {
+        bg: 'rgba(45,212,191,0.1)', color: '#2dd4bf',
+        border: 'rgba(45,212,191,0.5)', label: 'Комірник',
+        icon: <HardHat size={15} />,
+    },
+};
+
+const BADGE_CONFIG: Record<string, {
+    bg: string; color: string; label: string; icon: React.ReactNode;
+}> = {
+    Admin: {
+        bg: 'rgba(99,102,241,0.12)', color: '#818cf8',
+        label: 'Адмін', icon: <Shield size={11} />,
+    },
+    Manager: {
+        bg: 'rgba(245,158,11,0.12)', color: '#f59e0b',
+        label: 'Менеджер', icon: <Shield size={11} />,
+    },
+    Worker: {
+        bg: 'rgba(45,212,191,0.12)', color: '#2dd4bf',
+        label: 'Комірник', icon: <HardHat size={11} />,
+    },
+};
+
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
 function AddEmployeeModal({ onClose, onAdd }: {
@@ -31,7 +66,6 @@ function AddEmployeeModal({ onClose, onAdd }: {
         setLoading(true);
         try {
             await authService.addEmployee(form);
-            // Перезавантажуємо список щоб побачити нового юзера
             const employees = await authService.getEmployees();
             const newest = employees.find(e => e.email === form.email);
             if (newest) onAdd(newest);
@@ -54,7 +88,6 @@ function AddEmployeeModal({ onClose, onAdd }: {
             <div className="w-full max-w-md rounded-xl p-6"
                  style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.08)' }}>
 
-                {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-base font-semibold" style={{ color: '#f1f5f9' }}>
                         Додати співробітника
@@ -136,42 +169,41 @@ function AddEmployeeModal({ onClose, onAdd }: {
                         />
                     </div>
 
-                    {/* Роль */}
+                    {/* Роль — тільки Manager і Worker, Admin створюється при реєстрації */}
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>
                             Роль
                         </label>
                         <div className="grid grid-cols-2 gap-2">
-                            {(['Worker', 'Admin'] as const).map(role => (
-                                <button
-                                    key={role}
-                                    type="button"
-                                    onClick={() => set('role', role)}
-                                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-all"
-                                    style={{
-                                        border: form.role === role
-                                            ? `1px solid ${role === 'Admin' ? 'rgba(99,102,241,0.5)' : 'rgba(45,212,191,0.5)'}`
-                                            : '1px solid rgba(255,255,255,0.08)',
-                                        background: form.role === role
-                                            ? role === 'Admin' ? 'rgba(99,102,241,0.1)' : 'rgba(45,212,191,0.1)'
-                                            : 'rgba(255,255,255,0.02)',
-                                        color: form.role === role
-                                            ? role === 'Admin' ? '#818cf8' : '#2dd4bf'
-                                            : '#475569',
-                                    }}
-                                >
-                                    {role === 'Admin'
-                                        ? <Shield size={15} />
-                                        : <HardHat size={15} />
-                                    }
-                                    {role === 'Admin' ? 'Адміністратор' : 'Комірник'}
-                                </button>
-                            ))}
+                            {(['Manager', 'Worker'] as const).map(role => {
+                                const rc = ROLE_CONFIG[role];
+                                const isSelected = form.role === role;
+                                return (
+                                    <button
+                                        key={role}
+                                        type="button"
+                                        onClick={() => set('role', role)}
+                                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-all"
+                                        style={{
+                                            border: isSelected
+                                                ? `1px solid ${rc.border}`
+                                                : '1px solid rgba(255,255,255,0.08)',
+                                            background: isSelected ? rc.bg : 'rgba(255,255,255,0.02)',
+                                            color: isSelected ? rc.color : '#475569',
+                                        }}
+                                    >
+                                        {rc.icon}
+                                        {rc.label}
+                                    </button>
+                                );
+                            })}
                         </div>
+                        <p className="text-xs mt-2" style={{ color: '#334155' }}>
+                            Роль Admin призначається автоматично при реєстрації компанії
+                        </p>
                     </div>
                 </div>
 
-                {/* Actions */}
                 <div className="flex gap-3 mt-6">
                     <button onClick={onClose}
                             className="flex-1 rounded-lg py-2.5 text-sm font-medium"
@@ -205,9 +237,11 @@ export default function UsersPage() {
     const [modalOpen, setModalOpen] = useState(false);
 
     useEffect(() => {
+        let mounted = true;
         authService.getEmployees()
-            .then(setEmployees)
-            .finally(() => setLoading(false));
+            .then(data => { if (mounted) setEmployees(data); })
+            .finally(() => { if (mounted) setLoading(false); });
+        return () => { mounted = false; };
     }, []);
 
     return (
@@ -219,7 +253,6 @@ export default function UsersPage() {
                 />
             )}
 
-            {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-xl font-bold" style={{ color: '#f1f5f9' }}>Користувачі</h1>
@@ -236,58 +269,52 @@ export default function UsersPage() {
                 </button>
             </div>
 
-            {/* List */}
             {loading ? (
                 <div className="flex items-center justify-center h-48">
                     <Loader2 size={28} className="animate-spin" style={{ color: '#6366f1' }} />
                 </div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {employees.map(emp => (
-                        <div key={emp.id} className="rounded-xl p-5"
-                             style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    {employees.map(emp => {
+                        const badge = BADGE_CONFIG[emp.role] ?? BADGE_CONFIG.Worker;
+                        return (
+                            <div key={emp.id} className="rounded-xl p-5"
+                                 style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.06)' }}>
 
-                            {/* Avatar + Role badge */}
-                            <div className="flex items-start justify-between mb-4">
-                                <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
-                                     style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}>
-                                    {emp.firstName[0]}{emp.lastName[0]}
+                                <div className="flex items-start justify-between mb-4">
+                                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
+                                         style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}>
+                                        {emp.firstName[0]}{emp.lastName[0]}
+                                    </div>
+                                    <span className="text-xs px-2.5 py-1 rounded-full flex items-center gap-1.5"
+                                          style={{ background: badge.bg, color: badge.color }}>
+                                        {badge.icon}
+                                        {badge.label}
+                                    </span>
                                 </div>
-                                <span className="text-xs px-2.5 py-1 rounded-full flex items-center gap-1.5"
-                                      style={{
-                                          background: emp.role === 'Admin' ? 'rgba(99,102,241,0.12)' : 'rgba(45,212,191,0.12)',
-                                          color: emp.role === 'Admin' ? '#818cf8' : '#2dd4bf',
-                                      }}>
-                  {emp.role === 'Admin' ? <Shield size={11} /> : <HardHat size={11} />}
-                                    {emp.role === 'Admin' ? 'Адмін' : 'Комірник'}
-                </span>
-                            </div>
 
-                            {/* Name */}
-                            <p className="text-sm font-semibold mb-1" style={{ color: '#f1f5f9' }}>
-                                {emp.firstName} {emp.lastName}
-                            </p>
-
-                            {/* Email */}
-                            <div className="flex items-center gap-1.5 mb-3">
-                                <Mail size={12} style={{ color: '#475569' }} />
-                                <p className="text-xs truncate" style={{ color: '#475569' }}>{emp.email}</p>
-                            </div>
-
-                            {/* Created at */}
-                            <div className="flex items-center gap-1.5 pt-3"
-                                 style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                                <Calendar size={11} style={{ color: '#334155' }} />
-                                <p className="text-xs" style={{ color: '#334155' }}>
-                                    {new Date(emp.createdAt).toLocaleDateString('uk-UA')}
+                                <p className="text-sm font-semibold mb-1" style={{ color: '#f1f5f9' }}>
+                                    {emp.firstName} {emp.lastName}
                                 </p>
+
+                                <div className="flex items-center gap-1.5 mb-3">
+                                    <Mail size={12} style={{ color: '#475569' }} />
+                                    <p className="text-xs truncate" style={{ color: '#475569' }}>{emp.email}</p>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 pt-3"
+                                     style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <Calendar size={11} style={{ color: '#334155' }} />
+                                    <p className="text-xs" style={{ color: '#334155' }}>
+                                        {new Date(emp.createdAt).toLocaleDateString('uk-UA')}
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
-            {/* Empty */}
             {!loading && employees.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-48 gap-3">
                     <Users size={36} style={{ color: '#1e293b' }} />

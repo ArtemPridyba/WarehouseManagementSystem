@@ -29,12 +29,10 @@ public class AuthService : IAuthService
         using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
-            // 1. Створюємо компанію (Tenant)
             var tenant = new Tenant { Name = request.CompanyName };
             _context.Tenants.Add(tenant);
             await _context.SaveChangesAsync();
 
-            // 2. Створюємо користувача
             var user = new AppUser
             {
                 UserName = request.Email,
@@ -50,9 +48,10 @@ public class AuthService : IAuthService
                 var errors = string.Join(", ", result.Errors.Select(e => e.Description));
                 throw new Exception($"Помилка реєстрації: {errors}");
             }
+            
+            await _userManager.AddToRoleAsync(user, "Admin");
 
             await transaction.CommitAsync();
-
             return await GenerateAuthResponse(user);
         }
         catch
@@ -61,7 +60,7 @@ public class AuthService : IAuthService
             throw;
         }
     }
-
+    
     public async Task<AuthResponse> LoginAsync(LoginRequest request)
     {
         var user = await _userManager.FindByEmailAsync(request.Email);
@@ -109,17 +108,20 @@ public class AuthService : IAuthService
     
     public async Task<bool> RegisterEmployeeAsync(Guid tenantId, CreateEmployeeRequest request)
     {
+        var allowedRoles = new[] { "Manager", "Worker" };
+        if (!allowedRoles.Contains(request.Role))
+            throw new Exception($"Недозволена роль: {request.Role}");
+
         var user = new AppUser
         {
             UserName = request.Email,
             Email = request.Email,
             FirstName = request.FirstName,
             LastName = request.LastName,
-            TenantId = tenantId 
+            TenantId = tenantId
         };
 
         var result = await _userManager.CreateAsync(user, request.Password);
-    
         if (result.Succeeded)
         {
             await _userManager.AddToRoleAsync(user, request.Role);

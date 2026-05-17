@@ -41,7 +41,7 @@ public class WorkOrdersController : ControllerBase
         return order == null ? NotFound() : Ok(order);
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateWorkOrderRequest request)
     {
@@ -72,7 +72,7 @@ public class WorkOrdersController : ControllerBase
     }
 
     // Призначити виконавця (тільки Admin)
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpPatch("{id}/assign")]
     public async Task<IActionResult> Assign(Guid id, [FromBody] AssignWorkOrderRequest request)
     {
@@ -87,7 +87,7 @@ public class WorkOrdersController : ControllerBase
         }
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {

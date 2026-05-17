@@ -6,7 +6,7 @@ import {
 import { inboundService } from '../services/inbound.service';
 import { productService } from '../services/product.service';
 import { warehouseService } from '../services/warehouse.service';
-import { useRole } from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth';
 import type {
     InboundOrder, InboundOrderRequest, ReceiveProductRequest,
     Product, LocationEntity, OrderStatus,
@@ -353,9 +353,9 @@ function ReceiveModal({ order, onClose, onReceive }: {
 
 // ─── Order Row ────────────────────────────────────────────────────────────────
 
-function OrderRow({ order, isAdmin, onDelete, onReceive }: {
+function OrderRow({ order, canManage, onDelete, onReceive }: {
     order: InboundOrder;
-    isAdmin: boolean;
+    canManage: boolean;
     onDelete: () => void;
     onReceive: () => void;
 }) {
@@ -385,7 +385,7 @@ function OrderRow({ order, isAdmin, onDelete, onReceive }: {
                             <PackageCheck size={13} /> Прийняти
                         </button>
                     )}
-                    {isAdmin && order.status === 'Draft' && (
+                    {canManage && order.status === 'Draft' && (
                         <button onClick={onDelete} style={{ color: '#475569' }}
                                 onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
                                 onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
@@ -409,7 +409,7 @@ function OrderRow({ order, isAdmin, onDelete, onReceive }: {
                             <span style={{ color: '#94a3b8' }}>{item.product?.name ?? '—'}</span>
                             <span className="text-right" style={{ color: '#f1f5f9' }}>{item.quantity}</span>
                             <span className="text-right" style={{
-                                color: item.receivedQuantity >= item.quantity ? '#2dd4bf' : '#f59e0b'
+                                color: item.receivedQuantity >= item.quantity ? '#2dd4bf' : '#f59e0b',
                             }}>
                                 {item.receivedQuantity}
                             </span>
@@ -424,7 +424,9 @@ function OrderRow({ order, isAdmin, onDelete, onReceive }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function InboundPage() {
-    const { isAdmin } = useRole();
+    const { user } = useAuth();
+    const canManage = user?.role === 'Admin' || user?.role === 'Manager';
+
     const [orders, setOrders] = useState<InboundOrder[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
@@ -486,7 +488,7 @@ export default function InboundPage() {
                         {orders.length} замовлень
                     </p>
                 </div>
-                {isAdmin && (
+                {canManage && (
                     <button onClick={() => setCreateModal(true)}
                             className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold"
                             style={{ background: '#6366f1', color: '#fff' }}>
@@ -510,7 +512,7 @@ export default function InboundPage() {
                         <OrderRow
                             key={order.id}
                             order={order}
-                            isAdmin={isAdmin}
+                            canManage={canManage}
                             onDelete={() => handleDelete(order.id)}
                             onReceive={() => setReceiveOrder(order)}
                         />

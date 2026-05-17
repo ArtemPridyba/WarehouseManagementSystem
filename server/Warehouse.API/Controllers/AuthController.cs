@@ -44,7 +44,7 @@ public class AuthController : ControllerBase
         }
     }
     
-    [Authorize] 
+    [Authorize(Roles = "Admin")]
     [HttpPost("add-employee")]
     public async Task<IActionResult> AddEmployee([FromBody] CreateEmployeeRequest request)
     {
@@ -64,7 +64,7 @@ public class AuthController : ControllerBase
         }
     }
     
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpGet("employees")]
     public async Task<IActionResult> GetEmployees()
     {

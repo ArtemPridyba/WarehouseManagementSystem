@@ -26,7 +26,7 @@ interface SimpleModalProps {
 
 function SimpleModal({ title, onClose, onSave, disabled, children }: SimpleModalProps) {
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError]     = useState<string | null>(null);
 
     async function handle() {
         setError(null);
@@ -114,12 +114,13 @@ function Input({ value, onChange, placeholder }: {
 // ─── Section header ───────────────────────────────────────────────────────────
 
 function SectionHeader({
-                           icon, label, count, color, expanded, onToggle, onAdd, onEdit, onDelete, isAdmin,
+                           icon, label, count, color, expanded, onToggle,
+                           onAdd, onEdit, onDelete, canManage,
                        }: {
     icon: React.ReactNode; label: string; count?: number; color: string;
     expanded?: boolean; onToggle?: () => void;
     onAdd?: () => void; onEdit?: () => void; onDelete?: () => void;
-    isAdmin: boolean;
+    canManage: boolean;
 }) {
     return (
         <div
@@ -135,31 +136,28 @@ function SectionHeader({
             {count !== undefined && (
                 <span className="text-xs px-2 py-0.5 rounded-full"
                       style={{ background: 'rgba(255,255,255,0.06)', color: '#475569' }}>
-          {count}
-        </span>
+                    {count}
+                </span>
             )}
-            {isAdmin && (
+            {canManage && (
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
                      onClick={e => e.stopPropagation()}>
                     {onAdd && (
-                        <button onClick={onAdd} className="p-1 rounded"
-                                style={{ color: '#475569' }}
+                        <button onClick={onAdd} className="p-1 rounded" style={{ color: '#475569' }}
                                 onMouseEnter={e => (e.currentTarget.style.color = '#818cf8')}
                                 onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
                             <Plus size={14} />
                         </button>
                     )}
                     {onEdit && (
-                        <button onClick={onEdit} className="p-1 rounded"
-                                style={{ color: '#475569' }}
+                        <button onClick={onEdit} className="p-1 rounded" style={{ color: '#475569' }}
                                 onMouseEnter={e => (e.currentTarget.style.color = '#818cf8')}
                                 onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
                             <Pencil size={13} />
                         </button>
                     )}
                     {onDelete && (
-                        <button onClick={onDelete} className="p-1 rounded"
-                                style={{ color: '#475569' }}
+                        <button onClick={onDelete} className="p-1 rounded" style={{ color: '#475569' }}
                                 onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
                                 onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
                             <Trash2 size={13} />
@@ -169,8 +167,8 @@ function SectionHeader({
             )}
             {onToggle && (
                 <span style={{ color: '#334155' }}>
-          {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-        </span>
+                    {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                </span>
             )}
         </div>
     );
@@ -181,34 +179,37 @@ function SectionHeader({
 type Modal =
     | { type: 'warehouse-create' }
     | { type: 'warehouse-edit'; warehouse: WarehouseEntity }
-    | { type: 'warehouse-delete'; warehouse: WarehouseEntity }
     | { type: 'zone-create'; warehouseId: string }
     | { type: 'zone-edit'; zone: ZoneEntity }
-    | { type: 'zone-delete'; zone: ZoneEntity }
     | { type: 'location-create'; zoneId: string }
-    | { type: 'location-edit'; location: LocationEntity }
-    | { type: 'location-delete'; location: LocationEntity };
+    | { type: 'location-edit'; location: LocationEntity };
 
 export default function WarehousePage() {
-    const { isAdmin } = useRole();
-    const [warehouses, setWarehouses] = useState<WarehouseEntity[]>([]);
-    const [zones, setZones] = useState<Record<string, ZoneEntity[]>>({});
-    const [locations, setLocations] = useState<Record<string, LocationEntity[]>>({});
+    const { canManage } = useRole();
+    const [warehouses, setWarehouses]             = useState<WarehouseEntity[]>([]);
+    const [zones, setZones]                       = useState<Record<string, ZoneEntity[]>>({});
+    const [locations, setLocations]               = useState<Record<string, LocationEntity[]>>({});
     const [expandedWarehouses, setExpandedWarehouses] = useState<Set<string>>(new Set());
-    const [expandedZones, setExpandedZones] = useState<Set<string>>(new Set());
-    const [loading, setLoading] = useState(true);
-    const [modal, setModal] = useState<Modal | null>(null);
+    const [expandedZones, setExpandedZones]       = useState<Set<string>>(new Set());
+    const [loading, setLoading]                   = useState(true);
+    const [modal, setModal]                       = useState<Modal | null>(null);
 
     // Form state
-    const [whForm, setWhForm] = useState({ name: '', address: '' });
+    const [whForm, setWhForm]   = useState({ name: '', address: '' });
     const [zoneForm, setZoneForm] = useState({ name: '' });
     const [locForm, setLocForm] = useState({ code: '', type: 'Storage' as LocationType });
 
+    // ConfirmModal state
+    const [confirmDelete, setConfirmDelete] = useState<{
+        title: string; message: string; onConfirm: () => Promise<void>;
+    } | null>(null);
+
     useEffect(() => {
+        let mounted = true;
         warehouseService.getAll().then(data => {
-            setWarehouses(data);
-            setLoading(false);
+            if (mounted) { setWarehouses(data); setLoading(false); }
         });
+        return () => { mounted = false; };
     }, []);
 
     // ── Toggle expand ───────────────────────────────────────────────────────────
@@ -284,11 +285,6 @@ export default function WarehousePage() {
         }
     }
 
-    async function deleteWarehouse(w: WarehouseEntity) {
-        await warehouseService.deleteWarehouse(w.id);
-        setWarehouses(p => p.filter(x => x.id !== w.id));
-    }
-
     async function saveZone() {
         if (modal?.type === 'zone-create') {
             const req: CreateZoneRequest = { warehouseId: modal.warehouseId, name: zoneForm.name };
@@ -299,31 +295,20 @@ export default function WarehousePage() {
             const updated = await warehouseService.updateZone(modal.zone.id, req);
             setZones(p => ({
                 ...p,
-                [modal.zone.warehouseId]: p[modal.zone.warehouseId]?.map(z => z.id === updated.id ? { ...updated, locations: z.locations } : z) ?? [],
+                [modal.zone.warehouseId]: p[modal.zone.warehouseId]?.map(
+                    z => z.id === updated.id ? { ...updated, locations: z.locations } : z
+                ) ?? [],
             }));
         }
     }
 
-    async function deleteZone(z: ZoneEntity) {
-        await warehouseService.deleteZone(z.id);
-        setZones(p => ({ ...p, [z.warehouseId]: p[z.warehouseId]?.filter(x => x.id !== z.id) ?? [] }));
-    }
-
     async function saveLocation() {
         if (modal?.type === 'location-create') {
-            const req: CreateLocationRequest = {
-                zoneId: modal.zoneId,
-                code: locForm.code,
-                locationType: locForm.type,
-            };
+            const req: CreateLocationRequest = { zoneId: modal.zoneId, code: locForm.code, locationType: locForm.type };
             const created = await warehouseService.createLocation(req);
             setLocations(p => ({ ...p, [modal.zoneId]: [...(p[modal.zoneId] ?? []), created] }));
         } else if (modal?.type === 'location-edit') {
-            const req: CreateLocationRequest = {
-                zoneId: modal.location.zoneId,
-                code: locForm.code,
-                locationType: locForm.type,
-            };
+            const req: CreateLocationRequest = { zoneId: modal.location.zoneId, code: locForm.code, locationType: locForm.type };
             const updated = await warehouseService.updateLocation(modal.location.id, req);
             setLocations(p => ({
                 ...p,
@@ -332,15 +317,83 @@ export default function WarehousePage() {
         }
     }
 
-    async function deleteLocation(l: LocationEntity) {
-        await warehouseService.deleteLocation(l.id);
-        setLocations(p => ({ ...p, [l.zoneId]: p[l.zoneId]?.filter(x => x.id !== l.id) ?? [] }));
+    // ── Delete handlers з підтвердженням ────────────────────────────────────────
+
+    function confirmDeleteWarehouse(w: WarehouseEntity) {
+        setConfirmDelete({
+            title:   'Видалити склад?',
+            message: `Склад "${w.name}" буде видалено разом з усіма зонами і комірками. Це незворотня дія.`,
+            onConfirm: async () => {
+                await warehouseService.deleteWarehouse(w.id);
+                setWarehouses(p => p.filter(x => x.id !== w.id));
+            },
+        });
+    }
+
+    function confirmDeleteZone(z: ZoneEntity) {
+        setConfirmDelete({
+            title:   'Видалити зону?',
+            message: `Зона "${z.name}" буде видалена разом з усіма комірками.`,
+            onConfirm: async () => {
+                await warehouseService.deleteZone(z.id);
+                setZones(p => ({ ...p, [z.warehouseId]: p[z.warehouseId]?.filter(x => x.id !== z.id) ?? [] }));
+            },
+        });
+    }
+
+    function confirmDeleteLocation(l: LocationEntity) {
+        setConfirmDelete({
+            title:   'Видалити комірку?',
+            message: `Комірка "${l.code}" буде видалена.`,
+            onConfirm: async () => {
+                await warehouseService.deleteLocation(l.id);
+                setLocations(p => ({ ...p, [l.zoneId]: p[l.zoneId]?.filter(x => x.id !== l.id) ?? [] }));
+            },
+        });
     }
 
     // ── Render ──────────────────────────────────────────────────────────────────
 
     return (
         <div className="space-y-6">
+
+            {/* ── Confirm Delete Modal ── */}
+            {confirmDelete && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                     style={{ background: 'rgba(0,0,0,0.7)' }}>
+                    <div className="w-full max-w-sm rounded-xl p-6"
+                         style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                                 style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)' }}>
+                                <Trash2 size={18} style={{ color: '#f87171' }} />
+                            </div>
+                            <h2 className="text-base font-semibold" style={{ color: '#f1f5f9' }}>
+                                {confirmDelete.title}
+                            </h2>
+                        </div>
+                        <p className="text-sm mb-5 leading-relaxed" style={{ color: '#94a3b8' }}>
+                            {confirmDelete.message}
+                        </p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setConfirmDelete(null)}
+                                    className="flex-1 rounded-lg py-2.5 text-sm font-medium"
+                                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8' }}>
+                                Скасувати
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    await confirmDelete.onConfirm();
+                                    setConfirmDelete(null);
+                                }}
+                                className="flex-1 rounded-lg py-2.5 text-sm font-semibold"
+                                style={{ background: '#ef4444', color: '#fff' }}>
+                                Видалити
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ── Modals ── */}
             {(modal?.type === 'warehouse-create' || modal?.type === 'warehouse-edit') && (
@@ -359,18 +412,6 @@ export default function WarehousePage() {
                 </SimpleModal>
             )}
 
-            {modal?.type === 'warehouse-delete' && (
-                <SimpleModal
-                    title="Видалити склад?"
-                    onClose={() => setModal(null)}
-                    onSave={() => deleteWarehouse(modal.warehouse)}
-                >
-                    <p className="text-sm" style={{ color: '#94a3b8' }}>
-                        Склад <strong>{modal.warehouse.name}</strong> буде видалено. Це незворотня дія.
-                    </p>
-                </SimpleModal>
-            )}
-
             {(modal?.type === 'zone-create' || modal?.type === 'zone-edit') && (
                 <SimpleModal
                     title={modal.type === 'zone-create' ? 'Нова зона' : 'Редагувати зону'}
@@ -381,14 +422,6 @@ export default function WarehousePage() {
                     <Field label="Назва зони *">
                         <Input value={zoneForm.name} onChange={v => setZoneForm({ name: v })} placeholder="Зона А" />
                     </Field>
-                </SimpleModal>
-            )}
-
-            {modal?.type === 'zone-delete' && (
-                <SimpleModal title="Видалити зону?" onClose={() => setModal(null)} onSave={() => deleteZone(modal.zone)}>
-                    <p className="text-sm" style={{ color: '#94a3b8' }}>
-                        Зона <strong>{modal.zone.name}</strong> буде видалена разом з усіма комірками.
-                    </p>
                 </SimpleModal>
             )}
 
@@ -417,14 +450,6 @@ export default function WarehousePage() {
                 </SimpleModal>
             )}
 
-            {modal?.type === 'location-delete' && (
-                <SimpleModal title="Видалити комірку?" onClose={() => setModal(null)} onSave={() => deleteLocation(modal.location)}>
-                    <p className="text-sm" style={{ color: '#94a3b8' }}>
-                        Комірка <strong>{modal.location.code}</strong> буде видалена.
-                    </p>
-                </SimpleModal>
-            )}
-
             {/* ── Page header ── */}
             <div className="flex items-center justify-between">
                 <div>
@@ -433,7 +458,7 @@ export default function WarehousePage() {
                         Ієрархія: Склад → Зони → Комірки
                     </p>
                 </div>
-                {isAdmin && (
+                {canManage && (
                     <button
                         onClick={openCreateWarehouse}
                         className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold"
@@ -453,7 +478,7 @@ export default function WarehousePage() {
                 <div className="flex flex-col items-center justify-center h-48 gap-3">
                     <Warehouse size={36} style={{ color: '#1e293b' }} />
                     <p className="text-sm" style={{ color: '#334155' }}>Складів ще немає</p>
-                    {isAdmin && (
+                    {canManage && (
                         <button onClick={openCreateWarehouse}
                                 className="text-sm px-3 py-1.5 rounded-lg"
                                 style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}>
@@ -467,7 +492,6 @@ export default function WarehousePage() {
                         <div key={warehouse.id} className="rounded-xl overflow-hidden"
                              style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
 
-                            {/* Warehouse row */}
                             <SectionHeader
                                 icon={<Warehouse size={15} />}
                                 label={warehouse.name}
@@ -476,17 +500,16 @@ export default function WarehousePage() {
                                 onToggle={() => toggleWarehouse(warehouse.id)}
                                 onAdd={() => openCreateZone(warehouse.id)}
                                 onEdit={() => openEditWarehouse(warehouse)}
-                                onDelete={() => setModal({ type: 'warehouse-delete', warehouse })}
-                                isAdmin={isAdmin}
+                                onDelete={() => confirmDeleteWarehouse(warehouse)}
+                                canManage={canManage}
                             />
 
-                            {/* Zones */}
                             {expandedWarehouses.has(warehouse.id) && (
                                 <div className="pl-6 pr-3 pb-3 pt-2 space-y-2"
                                      style={{ background: 'rgba(0,0,0,0.2)' }}>
                                     {(zones[warehouse.id] ?? []).length === 0 ? (
                                         <p className="text-xs py-2 px-3" style={{ color: '#334155' }}>
-                                            Зон немає — {isAdmin ? 'натисни + щоб додати' : 'зверніться до адміна'}
+                                            Зон немає — {canManage ? 'натисни + щоб додати' : 'зверніться до менеджера'}
                                         </p>
                                     ) : (
                                         (zones[warehouse.id] ?? []).map(zone => (
@@ -500,11 +523,10 @@ export default function WarehousePage() {
                                                     onToggle={() => toggleZone(zone.id)}
                                                     onAdd={() => openCreateLocation(zone.id)}
                                                     onEdit={() => openEditZone(zone)}
-                                                    onDelete={() => setModal({ type: 'zone-delete', zone })}
-                                                    isAdmin={isAdmin}
+                                                    onDelete={() => confirmDeleteZone(zone)}
+                                                    canManage={canManage}
                                                 />
 
-                                                {/* Locations */}
                                                 {expandedZones.has(zone.id) && (
                                                     <div className="pl-6 pt-2 pb-1 space-y-1">
                                                         {(locations[zone.id] ?? []).length === 0 ? (
@@ -521,17 +543,20 @@ export default function WarehousePage() {
                                                                              border: `1px solid ${LOCATION_TYPE_COLORS[loc.type]}25`,
                                                                          }}>
                                                                         <div className="flex items-center gap-2 min-w-0">
-                                                                            <MapPin size={12} className="shrink-0" style={{ color: LOCATION_TYPE_COLORS[loc.type] }} />
+                                                                            <MapPin size={12} className="shrink-0"
+                                                                                    style={{ color: LOCATION_TYPE_COLORS[loc.type] }} />
                                                                             <div className="min-w-0">
-                                                                                <p className="text-xs font-mono font-medium truncate" style={{ color: '#f1f5f9' }}>
+                                                                                <p className="text-xs font-mono font-medium truncate"
+                                                                                   style={{ color: '#f1f5f9' }}>
                                                                                     {loc.code}
                                                                                 </p>
-                                                                                <p className="text-xs" style={{ color: LOCATION_TYPE_COLORS[loc.type] }}>
+                                                                                <p className="text-xs"
+                                                                                   style={{ color: LOCATION_TYPE_COLORS[loc.type] }}>
                                                                                     {LOCATION_TYPE_LABELS[loc.type]}
                                                                                 </p>
                                                                             </div>
                                                                         </div>
-                                                                        {isAdmin && (
+                                                                        {canManage && (
                                                                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                                                                                 <button onClick={() => openEditLocation(loc)}
                                                                                         style={{ color: '#475569' }}
@@ -539,7 +564,7 @@ export default function WarehousePage() {
                                                                                         onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
                                                                                     <Pencil size={11} />
                                                                                 </button>
-                                                                                <button onClick={() => setModal({ type: 'location-delete', location: loc })}
+                                                                                <button onClick={() => confirmDeleteLocation(loc)}
                                                                                         style={{ color: '#475569' }}
                                                                                         onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
                                                                                         onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>

@@ -33,7 +33,7 @@ public class DbInitializer : IDbInitializer
             await _context.Database.MigrateAsync();
         }
 
-        string[] roles = { "Admin", "Worker" };
+        string[] roles = { "Admin", "Manager", "Worker" };
         foreach (var roleName in roles)
         {
             if (!await _roleManager.RoleExistsAsync(roleName))

@@ -34,7 +34,7 @@ public class ProductsController : ControllerBase
         return Ok(product);
     }
     
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpPost]
     public async Task<ActionResult<Product>> Create([FromBody] UpsertProductRequest request)
     {
@@ -49,7 +49,7 @@ public class ProductsController : ControllerBase
         }
     }
     
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpPut("{id}")]
     public async Task<ActionResult<Product>> Update(Guid id, [FromBody] UpsertProductRequest request)
     {
@@ -64,7 +64,7 @@ public class ProductsController : ControllerBase
         }
     }
     
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {

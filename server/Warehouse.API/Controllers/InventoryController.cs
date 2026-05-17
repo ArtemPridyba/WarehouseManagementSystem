@@ -66,7 +66,7 @@ public class InventoryController : ControllerBase
         }
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Manager")]
     [HttpPost("adjust")]
     public async Task<IActionResult> Adjust([FromBody] AdjustmentRequest request)
     {
