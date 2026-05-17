@@ -13,6 +13,7 @@ import RegisterPage from './pages/auth/RegisterPage';
 import InventoryPage from './pages/InventoryPage';
 import WorkOrdersPage from './pages/WorkOrdersPage';
 import TransactionHistoryPage from './pages/TransactionHistoryPage';
+import ProfilePage from "./pages/ProfilePage.tsx";
 
 export default function App() {
     return (
@@ -32,6 +33,7 @@ export default function App() {
                             <Route path="/inbound"   element={<InboundPage />} />
                             <Route path="/outbound"  element={<OutboundPage />} />
                             <Route path="/transactions" element={<TransactionHistoryPage />} />
+                            <Route path="/profile" element={<ProfilePage />} />
                         </Route>
                     </Route>
 

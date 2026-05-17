@@ -152,4 +152,29 @@ public class AuthService : IAuthService
         }
         return result;
     }
+    
+    public async Task<AuthResponse> UpdateProfileAsync(Guid userId, UpdateProfileRequest request)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString())
+                   ?? throw new Exception("Користувача не знайдено");
+
+        user.FirstName = request.FirstName;
+        user.LastName  = request.LastName;
+
+        var result = await _userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+            throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
+
+        return await GenerateAuthResponse(user);
+    }
+
+    public async Task ChangePasswordAsync(Guid userId, ChangePasswordRequest request)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString())
+                   ?? throw new Exception("Користувача не знайдено");
+
+        var result = await _userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+        if (!result.Succeeded)
+            throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
+    }
 }

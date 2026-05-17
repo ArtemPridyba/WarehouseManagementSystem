@@ -75,4 +75,60 @@ public class AuthController : ControllerBase
         var employees = await _authService.GetEmployeesAsync(tenantId);
         return Ok(employees);
     }
+    
+    [Authorize]
+    [HttpGet("me")]
+    public async Task<IActionResult> GetMe()
+    {
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+        var tenantId = User.FindFirst("TenantId")?.Value;
+        var fullName = User.FindFirst("FullName")?.Value;
+        var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+        var email = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+
+        return Ok(new {
+            Id = userIdClaim,
+            Email = email,
+            FullName = fullName,
+            Role = role,
+            TenantId = tenantId,
+        });
+    }
+
+    [Authorize]
+    [HttpPut("profile")]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
+    {
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+
+        try
+        {
+            var response = await _authService.UpdateProfileAsync(Guid.Parse(userIdClaim), request);
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    [Authorize]
+    [HttpPut("change-password")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+    {
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+
+        try
+        {
+            await _authService.ChangePasswordAsync(Guid.Parse(userIdClaim), request);
+            return Ok("Пароль успішно змінено");
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
 }

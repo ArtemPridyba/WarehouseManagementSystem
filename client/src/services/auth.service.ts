@@ -25,4 +25,13 @@ export const authService = {
         const res = await axiosInstance.get<EmployeeDto[]>('/Auth/employees');
         return res.data;
     },
+
+    async updateProfile(data: { firstName: string; lastName: string }): Promise<AuthResponse> {
+        const res = await axiosInstance.put<AuthResponse>('/Auth/profile', data);
+        return res.data;
+    },
+
+    async changePassword(data: { currentPassword: string; newPassword: string }): Promise<void> {
+        await axiosInstance.put('/Auth/change-password', data);
+    },
 };

@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import {NavLink, Outlet, useNavigate} from 'react-router-dom';
 import {
     LayoutDashboard,
     Warehouse,
@@ -56,6 +56,7 @@ export default function MainLayout() {
     const { isAdmin } = useRole();
     const [collapsed, setCollapsed] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
+    const navigate = useNavigate();
 
     const visibleItems = NAV_ITEMS.filter(item => {
         if (item.adminOnly && !isAdmin) return false;
@@ -146,6 +147,9 @@ export default function MainLayout() {
                         <div
                             className="px-3 py-2 mb-2 rounded-lg"
                             style={{ background: 'rgba(255,255,255,0.03)' }}
+                            onClick={() => navigate('/profile')}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(99,102,241,0.08)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
                         >
                             <p className="text-xs font-medium truncate" style={{ color: '#f1f5f9' }}>
                                 {user?.fullName}
@@ -160,6 +164,7 @@ export default function MainLayout() {
                                 {roleConfig.label}
                             </span>
                         </div>
+
                     )}
 
                     <button
