@@ -8,4 +8,6 @@ public interface IAuthService
     Task<AuthResponse> LoginAsync(LoginRequest request);
     Task<bool> RegisterEmployeeAsync(Guid tenantId, CreateEmployeeRequest request);
     Task<IEnumerable<EmployeeDto>> GetEmployeesAsync(Guid tenantId);
+    Task<AuthResponse> UpdateProfileAsync(Guid userId, UpdateProfileRequest request);
+    Task ChangePasswordAsync(Guid userId, ChangePasswordRequest request);
 }
