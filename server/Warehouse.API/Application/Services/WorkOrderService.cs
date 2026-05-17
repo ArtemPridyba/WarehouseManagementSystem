@@ -166,4 +166,35 @@ public class WorkOrderService : IWorkOrderService
         await _context.SaveChangesAsync();
         return true;
     }
+    
+    public async Task<NotificationsDto> GetNotificationsAsync()
+    {
+        var userId = _currentUser.UserId;
+        if (userId == null) return new NotificationsDto();
+
+        var items = await _context.WorkOrders
+            .Where(w =>
+                w.AssignedToId == userId &&
+                w.Status == WorkOrderStatus.Pending)
+            .OrderByDescending(w => w.Priority)
+            .ThenBy(w => w.CreatedAt)
+            .Take(10)
+            .Select(w => new NotificationItem
+            {
+                Id        = w.Id,
+                Title     = w.Title,
+                Type      = w.Type.ToString(),
+                Priority  = w.Priority.ToString(),
+                CreatedAt = w.CreatedAt,
+                IsUrgent  = w.Priority == WorkOrderPriority.Urgent || w.Priority == WorkOrderPriority.High,
+            })
+            .AsNoTracking()
+            .ToListAsync();
+
+        return new NotificationsDto
+        {
+            TotalCount = items.Count,
+            Items      = items,
+        };
+    }
 }

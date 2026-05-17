@@ -4,7 +4,7 @@ import type {
     CreateWorkOrderRequest,
     UpdateWorkOrderStatusRequest,
     AssignWorkOrderRequest,
-    WorkOrderStatus,
+    WorkOrderStatus, NotificationsDto,
 } from '../types';
 
 export const workOrderService = {
@@ -36,5 +36,9 @@ export const workOrderService = {
 
     async delete(id: string): Promise<void> {
         await axiosInstance.delete(`/WorkOrders/${id}`);
+    },
+    async getNotifications(): Promise<NotificationsDto> {
+        const res = await axiosInstance.get<NotificationsDto>('/WorkOrders/notifications');
+        return res.data;
     },
 };
