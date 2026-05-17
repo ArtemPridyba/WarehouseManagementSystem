@@ -101,4 +101,11 @@ public class WorkOrdersController : ControllerBase
             return BadRequest(ex.Message);
         }
     }
+    
+    [HttpGet("notifications")]
+    public async Task<IActionResult> GetNotifications()
+    {
+        var result = await _workOrderService.GetNotificationsAsync();
+        return Ok(result);
+    }
 }

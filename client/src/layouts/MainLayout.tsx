@@ -16,6 +16,7 @@ import {
     History,
 } from 'lucide-react';
 import { useAuth, useLogout, useRole } from '../hooks/useAuth';
+import NotificationBell from "../components/NotificationBell.tsx";
 
 // ─── Навігаційні пункти ───────────────────────────────────────────────────────
 
@@ -191,6 +192,9 @@ export default function MainLayout() {
                     </button>
 
                     <div className="flex-1" />
+
+                    {/* Нотифікації */}
+                    <NotificationBell />
 
                     {/* Role badge в хедері */}
                     <div

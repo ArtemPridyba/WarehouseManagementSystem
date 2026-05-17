@@ -97,3 +97,17 @@ export interface UpdateWorkOrderStatusRequest {
 export interface AssignWorkOrderRequest {
     assignedToId: string;
 }
+
+export interface NotificationItem {
+    id: string;
+    title: string;
+    type: WorkOrderType;
+    priority: WorkOrderPriority;
+    createdAt: string;
+    isUrgent: boolean;
+}
+
+export interface NotificationsDto {
+    totalCount: number;
+    items: NotificationItem[];
+}

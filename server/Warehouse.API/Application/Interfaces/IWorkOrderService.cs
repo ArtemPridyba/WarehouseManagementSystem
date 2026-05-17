@@ -12,4 +12,5 @@ public interface IWorkOrderService
     Task<WorkOrderDto> UpdateStatusAsync(Guid id, UpdateWorkOrderStatusRequest request);
     Task<WorkOrderDto> AssignAsync(Guid id, AssignWorkOrderRequest request);
     Task<bool> DeleteAsync(Guid id);
+    Task<NotificationsDto> GetNotificationsAsync();
 }
