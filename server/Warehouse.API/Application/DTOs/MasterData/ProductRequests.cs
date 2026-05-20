@@ -18,6 +18,8 @@ public record UpsertProductRequest
     public Guid? CategoryId { get; init; }
 
     public bool IsBatchTracked { get; init; }
+    
+    public decimal MinStock { get; init; } = 0;
 }
 
 public record UpsertCategoryRequest

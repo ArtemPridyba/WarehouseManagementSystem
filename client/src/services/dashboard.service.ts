@@ -4,6 +4,7 @@ import type {
     AbcAnalysisDto,
     LocationUtilizationDto,
     HourlyActivityDto,
+    LowStockItem,
 } from '../types';
 
 export const dashboardService = {
@@ -24,6 +25,11 @@ export const dashboardService = {
 
     async getHeatmap(): Promise<HourlyActivityDto[]> {
         const res = await axiosInstance.get<HourlyActivityDto[]>('/Dashboard/activity-heatmap');
+        return res.data;
+    },
+
+    async getLowStock(): Promise<LowStockItem[]> {
+        const res = await axiosInstance.get<LowStockItem[]>('/Dashboard/low-stock');
         return res.data;
     },
 };

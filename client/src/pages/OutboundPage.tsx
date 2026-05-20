@@ -1,12 +1,16 @@
 ﻿import { useEffect, useState } from 'react';
 import {
     ArrowUpFromLine, Plus, Trash2, Loader2,
-    X, ChevronDown, ChevronRight, SendHorizontal,
+    X, ChevronDown, ChevronRight, SendHorizontal, Download,
 } from 'lucide-react';
 import { outboundService } from '../services/outbound.service';
 import { productService } from '../services/product.service';
 import { warehouseService } from '../services/warehouse.service';
 import { useAuth } from '../hooks/useAuth';
+import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
+import { exportToCsv } from '../utils/exportCsv';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmModal from '../components/ConfirmModal';
 import type {
     OutboundOrder, OutboundOrderRequest, ShipProductRequest,
     Product, LocationEntity, OrderStatus,
@@ -41,14 +45,8 @@ function CreateOrderModal({ products, onClose, onCreate }: {
     const [loading, setLoading]           = useState(false);
     const [error, setError]               = useState<string | null>(null);
 
-    function addItem() {
-        setItems(p => [...p, { productId: '', quantity: 1 }]);
-    }
-
-    function removeItem(i: number) {
-        setItems(p => p.filter((_, idx) => idx !== i));
-    }
-
+    function addItem() { setItems(p => [...p, { productId: '', quantity: 1 }]); }
+    function removeItem(i: number) { setItems(p => p.filter((_, idx) => idx !== i)); }
     function updateItem(i: number, field: 'productId' | 'quantity', value: string | number) {
         setItems(p => p.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
     }
@@ -192,8 +190,8 @@ function ShipModal({ order, onClose, onShip }: {
     onClose: () => void;
     onShip: () => void;
 }) {
-    const [warehouses, setWarehouses]         = useState<{ id: string; name: string }[]>([]);
-    const [locations, setLocations]           = useState<LocationEntity[]>([]);
+    const [warehouses, setWarehouses]               = useState<{ id: string; name: string }[]>([]);
+    const [locations, setLocations]                 = useState<LocationEntity[]>([]);
     const [selectedWarehouse, setSelectedWarehouse] = useState('');
     const [form, setForm] = useState<ShipProductRequest>({
         outboundOrderId: order.id,
@@ -205,9 +203,11 @@ function ShipModal({ order, onClose, onShip }: {
     const [error, setError]     = useState<string | null>(null);
 
     useEffect(() => {
-        warehouseService.getAll().then(data =>
-            setWarehouses(data.map(w => ({ id: w.id, name: w.name })))
-        );
+        let mounted = true;
+        warehouseService.getAll().then(data => {
+            if (mounted) setWarehouses(data.map(w => ({ id: w.id, name: w.name })));
+        });
+        return () => { mounted = false; };
     }, []);
 
     async function handleWarehouseChange(warehouseId: string) {
@@ -288,7 +288,6 @@ function ShipModal({ order, onClose, onShip }: {
                             ))}
                         </select>
                     </div>
-
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Склад *</label>
                         <select value={selectedWarehouse}
@@ -299,7 +298,6 @@ function ShipModal({ order, onClose, onShip }: {
                             {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                         </select>
                     </div>
-
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Комірка *</label>
                         <select value={form.locationId}
@@ -311,7 +309,6 @@ function ShipModal({ order, onClose, onShip }: {
                             {locations.map(l => <option key={l.id} value={l.id}>{l.code}</option>)}
                         </select>
                     </div>
-
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Кількість *</label>
                         <input type="number" min={0.001} step={0.001}
@@ -375,9 +372,7 @@ function OrderRow({ order, canManage, onDelete, onShip }: {
                         {order.customerName}
                     </span>
                 </div>
-                <span className="text-xs" style={{ color: '#475569' }}>
-                    {order.items.length} поз.
-                </span>
+                <span className="text-xs" style={{ color: '#475569' }}>{order.items.length} поз.</span>
                 <StatusBadge status={order.status} />
                 <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                     {order.status !== 'Completed' && order.status !== 'Cancelled' && (
@@ -410,9 +405,8 @@ function OrderRow({ order, canManage, onDelete, onShip }: {
                              style={{ gridTemplateColumns: '2fr 1fr 1fr', borderTop: '1px solid rgba(255,255,255,0.03)' }}>
                             <span style={{ color: '#94a3b8' }}>{item.product?.name ?? '—'}</span>
                             <span className="text-right" style={{ color: '#f1f5f9' }}>{item.quantity}</span>
-                            <span className="text-right" style={{
-                                color: item.shippedQuantity >= item.quantity ? '#2dd4bf' : '#f59e0b',
-                            }}>
+                            <span className="text-right"
+                                  style={{ color: item.shippedQuantity >= item.quantity ? '#2dd4bf' : '#f59e0b' }}>
                                 {item.shippedQuantity}
                             </span>
                         </div>
@@ -426,14 +420,16 @@ function OrderRow({ order, canManage, onDelete, onShip }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function OutboundPage() {
-    const { user } = useAuth();
+    const { user }  = useAuth();
     const canManage = user?.role === 'Admin' || user?.role === 'Manager';
+    const { confirm, options, handleConfirm, handleClose } = useConfirm();
 
-    const [orders, setOrders]   = useState<OutboundOrder[]>([]);
+    const [orders, setOrders]     = useState<OutboundOrder[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading]   = useState(true);
     const [createModal, setCreateModal] = useState(false);
     const [shipOrder, setShipOrder]     = useState<OutboundOrder | null>(null);
+    const [barcodeSearch, setBarcodeSearch] = useState('');
 
     async function load() {
         const [o, p] = await Promise.all([
@@ -442,7 +438,6 @@ export default function OutboundPage() {
         ]);
         setOrders(o);
         setProducts(p);
-        setLoading(false);
     }
 
     useEffect(() => {
@@ -452,28 +447,68 @@ export default function OutboundPage() {
                 outboundService.getAll(),
                 productService.getAll(),
             ]);
-            if (mounted) {
-                setOrders(o);
-                setProducts(p);
-                setLoading(false);
-            }
+            if (mounted) { setOrders(o); setProducts(p); setLoading(false); }
         }
         init();
         return () => { mounted = false; };
     }, []);
 
-    async function handleDelete(id: string) {
-        await outboundService.delete(id);
-        setOrders(p => p.filter(o => o.id !== id));
+    // ── Штрих-код сканер ──────────────────────────────────────────────────────
+    useBarcodeScanner({
+        enabled: !shipOrder && !createModal,
+        onScan: (barcode) => {
+            const found = orders.find(
+                o => o.orderNumber.toLowerCase() === barcode.toLowerCase()
+            );
+            if (found && found.status !== 'Completed' && found.status !== 'Cancelled') {
+                setShipOrder(found);
+            } else {
+                setBarcodeSearch(barcode);
+            }
+        },
+    });
+
+    // ── CSV Експорт ───────────────────────────────────────────────────────────
+    function handleExport() {
+        exportToCsv('outbound_orders', orders.map(order => ({
+            'Номер замовлення':     order.orderNumber,
+            'Клієнт':               order.customerName,
+            'Статус':               ORDER_STATUS_LABELS[order.status],
+            'Кількість позицій':    order.items.length,
+            'Відвантажено позицій': order.items.filter(i => i.shippedQuantity >= i.quantity).length,
+        })));
     }
+
+    async function handleDeleteClick(id: string, orderNumber: string) {
+        const confirmed = await confirm({
+            title:        'Видалити замовлення?',
+            message:      `Замовлення "${orderNumber}" буде видалено. Цю дію неможливо скасувати.`,
+            confirmLabel: 'Видалити',
+            danger:       true,
+        });
+        if (confirmed) {
+            await outboundService.delete(id);
+            setOrders(p => p.filter(o => o.id !== id));
+        }
+    }
+
+    const filteredOrders = barcodeSearch
+        ? orders.filter(o =>
+            o.orderNumber.toLowerCase().includes(barcodeSearch.toLowerCase()) ||
+            o.customerName.toLowerCase().includes(barcodeSearch.toLowerCase())
+        )
+        : orders;
 
     return (
         <div className="space-y-6">
+            {options && (
+                <ConfirmModal {...options} onConfirm={handleConfirm} onClose={handleClose} />
+            )}
             {createModal && (
                 <CreateOrderModal
                     products={products}
                     onClose={() => setCreateModal(false)}
-                    onCreate={order => setOrders(p => [order, ...p])}
+                    onCreate={order => { setOrders(p => [order, ...p]); }}
                 />
             )}
             {shipOrder && (
@@ -484,39 +519,73 @@ export default function OutboundPage() {
                 />
             )}
 
-            <div className="flex items-center justify-between">
+            {/* Header */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <h1 className="text-xl font-bold" style={{ color: '#f1f5f9' }}>Відвантаження</h1>
                     <p className="text-sm mt-1" style={{ color: '#475569' }}>
                         {orders.length} замовлень
                     </p>
                 </div>
-                {canManage && (
-                    <button onClick={() => setCreateModal(true)}
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold"
-                            style={{ background: '#6366f1', color: '#fff' }}>
-                        <Plus size={16} /> Нове замовлення
+                <div className="flex items-center gap-2">
+                    {/* Пошук / сканер */}
+                    <input
+                        value={barcodeSearch}
+                        onChange={e => setBarcodeSearch(e.target.value)}
+                        placeholder="Номер замовлення або клієнт..."
+                        className="rounded-lg px-3 py-2 text-sm outline-none"
+                        style={{
+                            width: 260,
+                            background: '#13151f',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            color: '#f1f5f9',
+                        }}
+                        onFocus={e => (e.target.style.borderColor = 'rgba(99,102,241,0.4)')}
+                        onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.08)')}
+                    />
+                    {/* CSV */}
+                    <button
+                        onClick={handleExport}
+                        disabled={orders.length === 0}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all disabled:opacity-40"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8' }}
+                        onMouseEnter={e => { if (orders.length > 0) e.currentTarget.style.color = '#f1f5f9'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; }}
+                        title="Експортувати в CSV"
+                    >
+                        <Download size={14} /> CSV
                     </button>
-                )}
+                    {/* Нове замовлення */}
+                    {canManage && (
+                        <button onClick={() => setCreateModal(true)}
+                                className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold"
+                                style={{ background: '#6366f1', color: '#fff' }}>
+                            <Plus size={16} /> Нове замовлення
+                        </button>
+                    )}
+                </div>
             </div>
 
+            {/* List */}
             {loading ? (
                 <div className="flex items-center justify-center h-48">
                     <Loader2 size={28} className="animate-spin" style={{ color: '#6366f1' }} />
                 </div>
-            ) : orders.length === 0 ? (
+            ) : filteredOrders.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-48 gap-3">
                     <ArrowUpFromLine size={36} style={{ color: '#1e293b' }} />
-                    <p className="text-sm" style={{ color: '#334155' }}>Замовлень відвантаження ще немає</p>
+                    <p className="text-sm" style={{ color: '#334155' }}>
+                        {barcodeSearch ? 'Замовлення не знайдено' : 'Замовлень відвантаження ще немає'}
+                    </p>
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {orders.map(order => (
+                    {filteredOrders.map(order => (
                         <OrderRow
                             key={order.id}
                             order={order}
                             canManage={canManage}
-                            onDelete={() => handleDelete(order.id)}
+                            onDelete={() => handleDeleteClick(order.id, order.orderNumber)}
                             onShip={() => setShipOrder(order)}
                         />
                     ))}

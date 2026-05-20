@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useCallback, useEffect, useState} from 'react';
 import {
     ClipboardList, Plus, Loader2, X, CheckCircle,
     Clock, User, ChevronDown, ChevronRight,
@@ -16,7 +16,7 @@ import {useAuth, useRole} from '../hooks/useAuth';
 import type {
     WorkOrderDto, CreateWorkOrderRequest, WorkOrderStatus,
     WorkOrderType, WorkOrderPriority, EmployeeDto,
-    LocationEntity, InboundOrder, OutboundOrder, ProductLocationItem,
+    LocationEntity, InboundOrder, OutboundOrder, ProductLocationItem, PagedResult,
 } from '../types';
 import {
     WORK_ORDER_TYPE_LABELS, WORK_ORDER_STATUS_LABELS,
@@ -1412,120 +1412,119 @@ function AssignModal({order, employees, onClose, onDone}: {
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
+const PAGE_SIZE = 20;
 
 export default function WorkOrdersPage() {
-    const { user } = useAuth();
+    const { user }    = useAuth();
     const { canManage } = useRole();
-    const [orders, setOrders] = useState<WorkOrderDto[]>([]);
-    const [employees, setEmployees] = useState<EmployeeDto[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [filterStatus, setFilterStatus] = useState<WorkOrderStatus | ''>('');
-    const [showMyOnly, setShowMyOnly] = useState(!canManage);
-    const [createModal, setCreateModal] = useState(false);
-    const [completeOrder, setCompleteOrder] = useState<WorkOrderDto | null>(null);
-    const [assignOrder, setAssignOrder] = useState<WorkOrderDto | null>(null);
 
-    async function load() {
-        const [o, e] = await Promise.all([
-            showMyOnly
-                ? workOrderService.getMyTasks()
-                : workOrderService.getAll(filterStatus as WorkOrderStatus || undefined),
-            canManage ? authService.getEmployees() : Promise.resolve([]),
-        ]);
-        setOrders(o);
-        setEmployees(e);
-    }
+    const [result, setResult]             = useState<PagedResult<WorkOrderDto> | null>(null);
+    const [employees, setEmployees]       = useState<EmployeeDto[]>([]);
+    const [loading, setLoading]           = useState(true);
+    const [page, setPage]                 = useState(1);
+    const [filterStatus, setFilterStatus] = useState<WorkOrderStatus | ''>('');
+    const [showMyOnly, setShowMyOnly]     = useState(!canManage);
+    const [createModal, setCreateModal]   = useState(false);
+    const [completeOrder, setCompleteOrder] = useState<WorkOrderDto | null>(null);
+    const [assignOrder, setAssignOrder]     = useState<WorkOrderDto | null>(null);
+
+    const load = useCallback(async (p: number) => {
+        setLoading(true);
+        try {
+            const [orders, emps] = await Promise.all([
+                workOrderService.getPaged({
+                    page:     p,
+                    pageSize: PAGE_SIZE,
+                    status:   filterStatus as WorkOrderStatus || undefined,
+                    myOnly:   showMyOnly,
+                }),
+                canManage ? authService.getEmployees() : Promise.resolve([]),
+            ]);
+            setResult(orders);
+            setEmployees(emps);
+        } finally {
+            setLoading(false);
+        }
+    }, [filterStatus, showMyOnly, canManage]);
 
     useEffect(() => {
         let mounted = true;
+        setPage(1);
+        load(1).then(() => { if (!mounted) return; });
+        return () => { mounted = false; };
+    }, [load]);
 
-        async function init() {
-            const [o, e] = await Promise.all([
-                showMyOnly
-                    ? workOrderService.getMyTasks()
-                    : workOrderService.getAll(filterStatus as WorkOrderStatus || undefined),
-                canManage ? authService.getEmployees() : Promise.resolve([]),
-            ]);
-            if (mounted) {
-                setOrders(o);
-                setEmployees(e);
-                setLoading(false);
-            }
-        }
-
-        init();
-        return () => {
-            mounted = false;
-        };
-    }, [filterStatus, showMyOnly, canManage]);
+    function handlePageChange(next: number) {
+        setPage(next);
+        load(next);
+    }
 
     async function handleDelete(id: string) {
         await workOrderService.delete(id);
-        setOrders(p => p.filter(o => o.id !== id));
+        await load(page);
     }
 
     async function handleStatusChange(id: string, status: WorkOrderStatus) {
-        await workOrderService.updateStatus(id, {status});
-        await load();
+        await workOrderService.updateStatus(id, { status });
+        await load(page);
     }
 
     const STATUSES: { value: WorkOrderStatus | ''; label: string }[] = [
-        {value: '', label: 'Всі статуси'},
-        {value: 'Pending', label: 'Очікують'},
-        {value: 'InProgress', label: 'В роботі'},
-        {value: 'Completed', label: 'Виконані'},
-        {value: 'Cancelled', label: 'Скасовані'},
+        { value: '',           label: 'Всі статуси' },
+        { value: 'Pending',    label: 'Очікують' },
+        { value: 'InProgress', label: 'В роботі' },
+        { value: 'Completed',  label: 'Виконані' },
+        { value: 'Cancelled',  label: 'Скасовані' },
     ];
 
-    const pending = orders.filter(o => o.status === 'Pending').length;
+    const orders     = result?.items ?? [];
+    const pending    = orders.filter(o => o.status === 'Pending').length;
     const inProgress = orders.filter(o => o.status === 'InProgress').length;
 
     return (
         <div className="space-y-6">
             {createModal && (
-                <CreateModal employees={employees} onClose={() => setCreateModal(false)} onCreate={load}/>
+                <CreateModal employees={employees} onClose={() => setCreateModal(false)} onCreate={() => load(page)} />
             )}
             {completeOrder && (
-                <CompleteModal order={completeOrder} onClose={() => setCompleteOrder(null)} onDone={load}/>
+                <CompleteModal order={completeOrder} onClose={() => setCompleteOrder(null)} onDone={() => load(page)} />
             )}
             {assignOrder && (
                 <AssignModal order={assignOrder} employees={employees}
-                             onClose={() => setAssignOrder(null)} onDone={load}/>
+                             onClose={() => setAssignOrder(null)} onDone={() => load(page)} />
             )}
 
+            {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-xl font-bold" style={{color: '#f1f5f9'}}>Завдання</h1>
-                    <p className="text-sm mt-1" style={{color: '#475569'}}>
-                        {orders.length} завдань
-                        {pending > 0 && <span style={{color: '#f59e0b'}}> · {pending} очікують</span>}
-                        {inProgress > 0 && <span style={{color: '#6366f1'}}> · {inProgress} в роботі</span>}
+                    <h1 className="text-xl font-bold" style={{ color: '#f1f5f9' }}>Завдання</h1>
+                    <p className="text-sm mt-1" style={{ color: '#475569' }}>
+                        {result ? `${result.totalCount} завдань` : '…'}
+                        {pending > 0    && <span style={{ color: '#f59e0b' }}> · {pending} очікують</span>}
+                        {inProgress > 0 && <span style={{ color: '#6366f1' }}> · {inProgress} в роботі</span>}
                     </p>
                 </div>
                 {canManage && (
                     <button onClick={() => setCreateModal(true)}
                             className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold"
-                            style={{background: '#6366f1', color: '#fff'}}>
-                        <Plus size={16}/> Нове завдання
+                            style={{ background: '#6366f1', color: '#fff' }}>
+                        <Plus size={16} /> Нове завдання
                     </button>
                 )}
             </div>
 
+            {/* Filters */}
             <div className="flex gap-3 flex-wrap">
                 <div className="flex rounded-lg overflow-hidden"
-                     style={{border: '1px solid rgba(255,255,255,0.08)'}}>
+                     style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
                     <button onClick={() => setShowMyOnly(false)} className="px-3 py-2 text-sm transition-all"
-                            style={{
-                                background: !showMyOnly ? 'rgba(99,102,241,0.15)' : 'transparent',
-                                color: !showMyOnly ? '#818cf8' : '#475569'
-                            }}>
+                            style={{ background: !showMyOnly ? 'rgba(99,102,241,0.15)' : 'transparent',
+                                color: !showMyOnly ? '#818cf8' : '#475569' }}>
                         Всі
                     </button>
                     <button onClick={() => setShowMyOnly(true)} className="px-3 py-2 text-sm transition-all"
-                            style={{
-                                background: showMyOnly ? 'rgba(99,102,241,0.15)' : 'transparent',
-                                color: showMyOnly ? '#818cf8' : '#475569'
-                            }}>
+                            style={{ background: showMyOnly ? 'rgba(99,102,241,0.15)' : 'transparent',
+                                color: showMyOnly ? '#818cf8' : '#475569' }}>
                         Мої завдання
                     </button>
                 </div>
@@ -1533,30 +1532,27 @@ export default function WorkOrdersPage() {
                     <select value={filterStatus}
                             onChange={e => setFilterStatus(e.target.value as WorkOrderStatus | '')}
                             className="rounded-lg px-3 py-2 text-sm outline-none"
-                            style={{
-                                background: '#13151f',
-                                border: '1px solid rgba(255,255,255,0.08)',
-                                color: '#f1f5f9'
-                            }}>
+                            style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.08)', color: '#f1f5f9' }}>
                         {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
                 )}
             </div>
 
+            {/* List */}
             {loading ? (
                 <div className="flex items-center justify-center h-48">
-                    <Loader2 size={28} className="animate-spin" style={{color: '#6366f1'}}/>
+                    <Loader2 size={28} className="animate-spin" style={{ color: '#6366f1' }} />
                 </div>
             ) : orders.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-48 gap-3">
-                    <ClipboardList size={36} style={{color: '#1e293b'}}/>
-                    <p className="text-sm" style={{color: '#334155'}}>
+                    <ClipboardList size={36} style={{ color: '#1e293b' }} />
+                    <p className="text-sm" style={{ color: '#334155' }}>
                         {showMyOnly ? 'Немає активних завдань' : 'Завдань ще немає'}
                     </p>
                     {canManage && !showMyOnly && (
                         <button onClick={() => setCreateModal(true)}
                                 className="text-sm px-3 py-1.5 rounded-lg"
-                                style={{background: 'rgba(99,102,241,0.15)', color: '#818cf8'}}>
+                                style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}>
                             Створити перше завдання
                         </button>
                     )}
@@ -1575,6 +1571,32 @@ export default function WorkOrdersPage() {
                             onStatusChange={status => handleStatusChange(order.id, status)}
                         />
                     ))}
+                </div>
+            )}
+
+            {/* Пагінація */}
+            {!loading && result && result.totalCount > PAGE_SIZE && (
+                <div className="flex items-center justify-between px-1"
+                     style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 16 }}>
+                    <span className="text-xs" style={{ color: '#334155' }}>
+                        Сторінка {result.page} з {result.totalPages} · Всього: {result.totalCount}
+                    </span>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => handlePageChange(page - 1)}
+                            disabled={!result.hasPreviousPage}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs disabled:opacity-30"
+                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8' }}>
+                            ← Назад
+                        </button>
+                        <button
+                            onClick={() => handlePageChange(page + 1)}
+                            disabled={!result.hasNextPage}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs disabled:opacity-30"
+                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8' }}>
+                            Вперед →
+                        </button>
+                    </div>
                 </div>
             )}
         </div>

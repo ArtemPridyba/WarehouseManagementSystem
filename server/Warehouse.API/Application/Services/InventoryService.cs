@@ -238,4 +238,91 @@ private async Task<IList<string>> GetCurrentUserRolesAsync()
     if (user == null) return new List<string>();
     return await _userManager.GetRolesAsync(user);
 }
+
+public async Task<StockCountResultDto> ProcessStockCountAsync(StockCountRequest request)
+{
+    using var transaction = await _context.Database.BeginTransactionAsync();
+    try
+    {
+        // Поточний залишок в системі
+        var balance = await _context.InventoryBalances
+            .Include(b => b.Product)
+            .Include(b => b.Location)
+            .FirstOrDefaultAsync(b =>
+                b.LocationId == request.LocationId &&
+                b.ProductId  == request.ProductId  &&
+                b.BatchId    == request.BatchId);
+
+        var systemQuantity = balance?.Quantity ?? 0;
+        var delta          = request.ActualQuantity - systemQuantity;
+
+        var productName  = balance?.Product?.Name
+            ?? (await _context.Products.FindAsync(request.ProductId))?.Name
+            ?? "";
+        var locationCode = balance?.Location?.Code
+            ?? (await _context.Locations.FindAsync(request.LocationId))?.Code
+            ?? "";
+
+        // Якщо є розбіжність — коригуємо
+        if (delta != 0)
+        {
+            if (balance == null && request.ActualQuantity > 0)
+            {
+                // Товару не було — створюємо баланс
+                balance = new InventoryBalance
+                {
+                    ProductId  = request.ProductId,
+                    LocationId = request.LocationId,
+                    BatchId    = request.BatchId,
+                    Quantity   = request.ActualQuantity,
+                };
+                _context.InventoryBalances.Add(balance);
+            }
+            else if (balance != null)
+            {
+                balance.Quantity = request.ActualQuantity;
+                if (balance.Quantity <= 0)
+                    _context.InventoryBalances.Remove(balance);
+            }
+
+            // Транзакція коригування
+            var note = string.IsNullOrEmpty(request.Note)
+                ? $"Stock Count: розбіжність {(delta > 0 ? "+" : "")}{delta}"
+                : $"Stock Count: {request.Note}";
+
+            _context.InventoryTransactions.Add(new InventoryTransaction
+            {
+                ProductId       = request.ProductId,
+                FromLocationId  = request.LocationId,
+                ToLocationId    = request.LocationId,
+                BatchId         = request.BatchId,
+                Quantity        = delta,
+                Type            = TransactionType.Adjustment,
+                Reference       = note,
+                CreatedAt       = DateTime.UtcNow,
+                CreatedByUserId = _currentUser.UserId,
+            });
+
+            await _context.SaveChangesAsync();
+        }
+
+        await transaction.CommitAsync();
+
+        return new StockCountResultDto
+        {
+            ProductId       = request.ProductId,
+            ProductName     = productName,
+            LocationCode    = locationCode,
+            SystemQuantity  = systemQuantity,
+            ActualQuantity  = request.ActualQuantity,
+            Discrepancy     = delta,
+            HasDiscrepancy  = delta != 0,
+        };
+    }
+    catch
+    {
+        await transaction.RollbackAsync();
+        throw;
+    }
+}
 }

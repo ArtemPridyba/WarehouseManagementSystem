@@ -87,4 +87,18 @@ public class InventoryController : ControllerBase
         var result = await _inventoryService.GetTransactionsAsync(query);
         return Ok(result);
     }
+    
+    [HttpPost("stock-count")]
+    public async Task<IActionResult> StockCount([FromBody] StockCountRequest request)
+    {
+        try
+        {
+            var result = await _inventoryService.ProcessStockCountAsync(request);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
 }

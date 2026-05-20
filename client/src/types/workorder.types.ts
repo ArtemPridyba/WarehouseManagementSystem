@@ -1,3 +1,5 @@
+import type {PagedQuery} from "./common.types.ts";
+
 export type WorkOrderType = 'Receive' | 'Ship' | 'Transfer' | 'Adjust' | 'Count';
 export type WorkOrderStatus = 'Pending' | 'InProgress' | 'Completed' | 'Cancelled';
 export type WorkOrderPriority = 'Low' | 'Normal' | 'High' | 'Urgent';
@@ -110,4 +112,9 @@ export interface NotificationItem {
 export interface NotificationsDto {
     totalCount: number;
     items: NotificationItem[];
+}
+
+export interface GetWorkOrdersQuery extends PagedQuery {
+    status?: WorkOrderStatus;
+    myOnly?: boolean;
 }

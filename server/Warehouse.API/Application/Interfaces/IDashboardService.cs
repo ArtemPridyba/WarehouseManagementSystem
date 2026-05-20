@@ -9,4 +9,5 @@ public interface IDashboardService
     Task<IEnumerable<StockTurnoverDto>> GetStockTurnoverAsync(int days);
     Task<IEnumerable<LocationUtilizationDto>> GetLocationUtilizationAsync();
     Task<IEnumerable<HourlyActivityDto>> GetHourlyHeatmapAsync();
+    Task<IEnumerable<LowStockDto>> GetLowStockProductsAsync();
 }

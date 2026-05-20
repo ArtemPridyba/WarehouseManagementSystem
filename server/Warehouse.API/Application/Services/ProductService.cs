@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Warehouse.API.Application.DTOs.Common;
 using Warehouse.API.Application.DTOs.MasterData;
 using Warehouse.API.Application.Interfaces;
 using Warehouse.API.Domain.Entities;
@@ -41,7 +42,8 @@ public class ProductService : IProductService
             SKU = request.SKU,
             Barcode = request.Barcode,
             CategoryId = request.CategoryId,
-            IsBatchTracked = request.IsBatchTracked
+            IsBatchTracked = request.IsBatchTracked,
+            MinStock       = request.MinStock
         };
 
         _context.Products.Add(product);
@@ -65,6 +67,7 @@ public class ProductService : IProductService
         product.Barcode = request.Barcode;
         product.CategoryId = request.CategoryId;
         product.IsBatchTracked = request.IsBatchTracked;
+        product.MinStock = request.MinStock;
 
         await _context.SaveChangesAsync();
         return product;
@@ -81,5 +84,29 @@ public class ProductService : IProductService
         _context.Products.Remove(product);
         await _context.SaveChangesAsync();
         return true;
+    }
+    
+    public async Task<PagedResult<Product>> GetPagedAsync(GetProductsQuery query)
+    {
+        var q = _context.Products
+            .Include(p => p.Category)
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var search = query.Search.ToLower();
+            q = q.Where(p =>
+                p.Name.ToLower().Contains(search) ||
+                p.SKU.ToLower().Contains(search) ||
+                (p.Barcode != null && p.Barcode.Contains(search)));
+        }
+
+        if (query.CategoryId.HasValue)
+            q = q.Where(p => p.CategoryId == query.CategoryId.Value);
+
+        q = q.OrderBy(p => p.Name);
+
+        return await q.ToPagedResultAsync(query);
     }
 }

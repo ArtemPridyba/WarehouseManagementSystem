@@ -1,4 +1,6 @@
-﻿export interface ProductCategory {
+﻿import type {PagedQuery} from "./common.types.ts";
+
+export interface ProductCategory {
     id: string;
     name: string;
 }
@@ -13,6 +15,7 @@ export interface Product {
     isBatchTracked: boolean;
     isSerialTracked: boolean;
     tenantId: string;
+    minStock: number;
 }
 
 export interface UpsertProductRequest {
@@ -21,8 +24,23 @@ export interface UpsertProductRequest {
     barcode?: string;
     categoryId?: string;
     isBatchTracked: boolean;
+    minStock: number;
 }
 
 export interface UpsertCategoryRequest {
     name: string;
+}
+
+export interface LowStockItem {
+    productId: string;
+    productName: string;
+    sku: string;
+    currentStock: number;
+    minStock: number;
+    deficit: number;
+}
+
+export interface GetProductsQuery extends PagedQuery {
+    search?: string;
+    categoryId?: string;
 }

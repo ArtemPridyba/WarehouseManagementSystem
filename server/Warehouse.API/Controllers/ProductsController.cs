@@ -80,4 +80,11 @@ public class ProductsController : ControllerBase
             return BadRequest(ex.Message);
         }
     }
+    
+    [HttpGet("paged")]
+    public async Task<IActionResult> GetPaged([FromQuery] GetProductsQuery query)
+    {
+        var result = await _productService.GetPagedAsync(query);
+        return Ok(result);
+    }
 }

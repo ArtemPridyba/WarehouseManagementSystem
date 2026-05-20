@@ -2,18 +2,18 @@ import { useEffect, useState } from 'react';
 import {
     Boxes, Search, Loader2, X, ArrowLeftRight,
     SlidersHorizontal, MapPin, Package, AlertTriangle,
-    ChevronRight, Calendar, Hash,
+    ChevronRight, Calendar, Hash, Download,
 } from 'lucide-react';
 import { inventoryService } from '../services/inventory.service';
 import { warehouseService } from '../services/warehouse.service';
 import { productService } from '../services/product.service';
 import { useRole } from '../hooks/useAuth';
+import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
+import { exportToCsv } from '../utils/exportCsv';
 import type {
     StockItem, ProductLocationItem, TransferRequest,
     AdjustmentRequest, WarehouseEntity, Product, LocationWithZone,
 } from '../types';
-
-// ─── Transfer Modal ───────────────────────────────────────────────────────────
 
 function TransferModal({ item, locations, onClose, onDone }: {
     item: StockItem;
@@ -22,14 +22,14 @@ function TransferModal({ item, locations, onClose, onDone }: {
     onDone: () => void;
 }) {
     const [form, setForm] = useState<TransferRequest>({
-        productId: item.productId,
+        productId:      item.productId,
         fromLocationId: item.locationId,
-        toLocationId: '',
-        batchId: item.batchId || undefined,
-        quantity: item.quantity,
+        toLocationId:   '',
+        batchId:        item.batchId || undefined,
+        quantity:       item.quantity,
     });
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError]     = useState<string | null>(null);
 
     const availableLocations = locations.filter(l => l.id !== item.locationId);
     const isValid = form.toLocationId && form.quantity > 0 && form.quantity <= item.quantity;
@@ -95,9 +95,7 @@ function TransferModal({ item, locations, onClose, onDone }: {
                                 style={{ background: '#1e2130', border: '1px solid rgba(255,255,255,0.1)', color: '#f1f5f9' }}>
                             <option value="">— Оберіть комірку —</option>
                             {availableLocations.map(l => (
-                                <option key={l.id} value={l.id}>
-                                    {l.zoneName} → {l.code}
-                                </option>
+                                <option key={l.id} value={l.id}>{l.zoneName} → {l.code}</option>
                             ))}
                         </select>
                     </div>
@@ -107,11 +105,11 @@ function TransferModal({ item, locations, onClose, onDone }: {
                         </label>
                         <input type="number" min={0.001} step={0.001} max={item.quantity}
                                value={form.quantity}
-                               onChange={e => setForm(p => ({ ...p, quantity: parseFloat(e.target.value) }))}
+                               onChange={e => setForm(p => ({ ...p, quantity: parseFloat(e.target.value) || 0 }))}
                                className="w-full rounded-lg px-3 py-2.5 text-sm outline-none"
                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#f1f5f9' }}
-                               onFocus={e => (e.target.style.borderColor = 'rgba(99,102,241,0.6)')}
-                               onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
+                               onFocus={e => (e.currentTarget.style.borderColor = 'rgba(99,102,241,0.6)')}
+                               onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
                         />
                     </div>
                 </div>
@@ -139,8 +137,6 @@ function TransferModal({ item, locations, onClose, onDone }: {
     );
 }
 
-// ─── Adjust Modal ─────────────────────────────────────────────────────────────
-
 function AdjustModal({ item, onClose, onDone }: {
     item: StockItem;
     onClose: () => void;
@@ -148,24 +144,27 @@ function AdjustModal({ item, onClose, onDone }: {
 }) {
     const REASONS = ['Інвентаризація', 'Пошкодження товару', 'Пересортиця', 'Повернення', 'Списання браку', 'Інше'];
     const [form, setForm] = useState<AdjustmentRequest>({
-        productId: item.productId,
-        locationId: item.locationId,
-        batchId: item.batchId || undefined,
+        productId:   item.productId,
+        locationId:  item.locationId,
+        batchId:     item.batchId || undefined,
         newQuantity: item.quantity,
-        reason: REASONS[0],
+        reason:      REASONS[0],
     });
     const [customReason, setCustomReason] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [loading, setLoading]           = useState(false);
+    const [error, setError]               = useState<string | null>(null);
 
-    const delta = form.newQuantity - item.quantity;
+    const delta   = form.newQuantity - item.quantity;
     const isValid = form.newQuantity >= 0 && (form.reason !== 'Інше' || customReason.trim());
 
     async function handleSubmit() {
         setError(null);
         setLoading(true);
         try {
-            await inventoryService.adjust({ ...form, reason: form.reason === 'Інше' ? customReason : form.reason });
+            await inventoryService.adjust({
+                ...form,
+                reason: form.reason === 'Інше' ? customReason : form.reason,
+            });
             onDone();
             onClose();
         } catch (err: unknown) {
@@ -211,8 +210,8 @@ function AdjustModal({ item, onClose, onDone }: {
                                onChange={e => setForm(p => ({ ...p, newQuantity: parseFloat(e.target.value) || 0 }))}
                                className="w-full rounded-lg px-3 py-2.5 text-sm outline-none"
                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#f1f5f9' }}
-                               onFocus={e => (e.target.style.borderColor = 'rgba(99,102,241,0.6)')}
-                               onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
+                               onFocus={e => (e.currentTarget.style.borderColor = 'rgba(99,102,241,0.6)')}
+                               onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
                         />
                         {delta !== 0 && (
                             <p className="text-xs mt-1.5 flex items-center gap-1"
@@ -237,8 +236,8 @@ function AdjustModal({ item, onClose, onDone }: {
                                    placeholder="Опишіть причину..."
                                    className="w-full rounded-lg px-3 py-2.5 text-sm outline-none"
                                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#f1f5f9' }}
-                                   onFocus={e => (e.target.style.borderColor = 'rgba(99,102,241,0.6)')}
-                                   onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
+                                   onFocus={e => (e.currentTarget.style.borderColor = 'rgba(99,102,241,0.6)')}
+                                   onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
                             />
                         </div>
                     )}
@@ -267,8 +266,6 @@ function AdjustModal({ item, onClose, onDone }: {
     );
 }
 
-// ─── Product Detail Drawer ────────────────────────────────────────────────────
-
 function ProductDetailDrawer({ product, onClose, onTransfer, onAdjust, canManage }: {
     product: Product;
     onClose: () => void;
@@ -277,7 +274,7 @@ function ProductDetailDrawer({ product, onClose, onTransfer, onAdjust, canManage
     canManage: boolean;
 }) {
     const [locations, setLocations] = useState<ProductLocationItem[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading]     = useState(true);
 
     useEffect(() => {
         let mounted = true;
@@ -291,24 +288,10 @@ function ProductDetailDrawer({ product, onClose, onTransfer, onAdjust, canManage
 
     return (
         <>
-            {/* Overlay */}
-            <div
-                className="fixed inset-0 z-40"
-                style={{ background: 'rgba(0,0,0,0.5)' }}
-                onClick={onClose}
-            />
+            <div className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose} />
+            <div className="fixed right-0 top-0 h-full z-50 flex flex-col"
+                 style={{ width: 400, background: '#13151f', borderLeft: '1px solid rgba(255,255,255,0.08)', boxShadow: '-20px 0 60px rgba(0,0,0,0.4)' }}>
 
-            {/* Drawer */}
-            <div
-                className="fixed right-0 top-0 h-full z-50 flex flex-col"
-                style={{
-                    width: 400,
-                    background: '#13151f',
-                    borderLeft: '1px solid rgba(255,255,255,0.08)',
-                    boxShadow: '-20px 0 60px rgba(0,0,0,0.4)',
-                }}
-            >
-                {/* Header */}
                 <div className="flex items-start justify-between p-5"
                      style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                     <div className="flex items-center gap-3 min-w-0">
@@ -317,12 +300,8 @@ function ProductDetailDrawer({ product, onClose, onTransfer, onAdjust, canManage
                             <Package size={18} style={{ color: '#818cf8' }} />
                         </div>
                         <div className="min-w-0">
-                            <p className="text-sm font-semibold truncate" style={{ color: '#f1f5f9' }}>
-                                {product.name}
-                            </p>
-                            <p className="text-xs font-mono mt-0.5" style={{ color: '#6366f1' }}>
-                                {product.sku}
-                            </p>
+                            <p className="text-sm font-semibold truncate" style={{ color: '#f1f5f9' }}>{product.name}</p>
+                            <p className="text-xs font-mono mt-0.5" style={{ color: '#6366f1' }}>{product.sku}</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-1 shrink-0 mt-0.5" style={{ color: '#475569' }}>
@@ -330,9 +309,7 @@ function ProductDetailDrawer({ product, onClose, onTransfer, onAdjust, canManage
                     </button>
                 </div>
 
-                {/* Загальна кількість */}
-                <div className="px-5 py-4"
-                     style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                     <div className="grid grid-cols-2 gap-3">
                         <div className="rounded-lg px-3 py-2.5"
                              style={{ background: 'rgba(45,212,191,0.08)', border: '1px solid rgba(45,212,191,0.15)' }}>
@@ -347,11 +324,8 @@ function ProductDetailDrawer({ product, onClose, onTransfer, onAdjust, canManage
                     </div>
                 </div>
 
-                {/* Список локацій */}
                 <div className="flex-1 overflow-y-auto p-5 space-y-3">
-                    <p className="text-xs font-medium mb-3" style={{ color: '#475569' }}>
-                        Розміщення на складі
-                    </p>
+                    <p className="text-xs font-medium mb-3" style={{ color: '#475569' }}>Розміщення на складі</p>
 
                     {loading ? (
                         <div className="flex items-center justify-center py-8">
@@ -364,25 +338,22 @@ function ProductDetailDrawer({ product, onClose, onTransfer, onAdjust, canManage
                         </div>
                     ) : (
                         locations.map((loc, i) => {
-                            // Формуємо StockItem для модалів
                             const stockItem: StockItem = {
-                                productId: product.id,
+                                productId:   product.id,
                                 productName: product.name,
-                                sku: product.sku,
-                                location: loc.locationCode,
-                                locationId: loc.locationId,
-                                quantity: loc.availableQuantity,
-                                batch: loc.batchNumber !== 'No Batch' ? loc.batchNumber : undefined,
-                                batchId: undefined,
-                                zoneName: undefined,
-                                expiryDate: loc.expiryDate,
+                                sku:         product.sku,
+                                location:    loc.locationCode,
+                                locationId:  loc.locationId,
+                                quantity:    loc.availableQuantity,
+                                batch:       loc.batchNumber !== 'No Batch' ? loc.batchNumber : undefined,
+                                batchId:     undefined,
+                                zoneName:    undefined,
+                                expiryDate:  loc.expiryDate,
                             };
 
                             return (
                                 <div key={i} className="rounded-lg p-3"
                                      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-
-                                    {/* Локація + кількість */}
                                     <div className="flex items-center justify-between mb-2">
                                         <div className="flex items-center gap-2">
                                             <MapPin size={13} style={{ color: '#6366f1' }} />
@@ -394,8 +365,6 @@ function ProductDetailDrawer({ product, onClose, onTransfer, onAdjust, canManage
                                             {loc.availableQuantity} од.
                                         </span>
                                     </div>
-
-                                    {/* Партія та термін */}
                                     {loc.batchNumber !== 'No Batch' && (
                                         <div className="flex items-center gap-3 mb-2">
                                             <div className="flex items-center gap-1.5">
@@ -415,39 +384,32 @@ function ProductDetailDrawer({ product, onClose, onTransfer, onAdjust, canManage
                                             )}
                                         </div>
                                     )}
-
-                                    {/* Кнопки дій */}
-                                    <div className="flex gap-2 mt-2">
-                                        <button
-                                            onClick={() => { onClose(); onTransfer(stockItem); }}
-                                            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium"
-                                            style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.2)' }}
-                                        >
-                                            <ArrowLeftRight size={12} /> Перемістити
-                                        </button>
-                                        {canManage && (
+                                    {canManage && (
+                                        <div className="flex gap-2 mt-2">
+                                            <button
+                                                onClick={() => { onClose(); onTransfer(stockItem); }}
+                                                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium"
+                                                style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.2)' }}>
+                                                <ArrowLeftRight size={12} /> Перемістити
+                                            </button>
                                             <button
                                                 onClick={() => { onClose(); onAdjust(stockItem); }}
                                                 className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium"
-                                                style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.2)' }}
-                                            >
+                                                style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.2)' }}>
                                                 <SlidersHorizontal size={12} /> Скоригувати
                                             </button>
-                                        )}
-                                    </div>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })
                     )}
                 </div>
 
-                {/* Footer */}
                 <div className="p-5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                    <button
-                        onClick={onClose}
-                        className="w-full rounded-lg py-2.5 text-sm font-medium"
-                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8' }}
-                    >
+                    <button onClick={onClose}
+                            className="w-full rounded-lg py-2.5 text-sm font-medium"
+                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8' }}>
                         Закрити
                     </button>
                 </div>
@@ -456,20 +418,18 @@ function ProductDetailDrawer({ product, onClose, onTransfer, onAdjust, canManage
     );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 export default function InventoryPage() {
-    const { canManage } = useRole();
-    const [warehouses, setWarehouses]           = useState<WarehouseEntity[]>([]);
+    const { canManage }   = useRole();
+    const [warehouses, setWarehouses]               = useState<WarehouseEntity[]>([]);
     const [selectedWarehouse, setSelectedWarehouse] = useState('');
-    const [stock, setStock]                     = useState<StockItem[]>([]);
-    const [allLocations, setAllLocations]       = useState<LocationWithZone[]>([]);
-    const [products, setProducts]               = useState<Product[]>([]);
-    const [loading, setLoading]                 = useState(false);
-    const [search, setSearch]                   = useState('');
-    const [transferItem, setTransferItem]       = useState<StockItem | null>(null);
-    const [adjustItem, setAdjustItem]           = useState<StockItem | null>(null);
-    const [detailProduct, setDetailProduct]     = useState<Product | null>(null);
+    const [stock, setStock]                         = useState<StockItem[]>([]);
+    const [allLocations, setAllLocations]           = useState<LocationWithZone[]>([]);
+    const [products, setProducts]                   = useState<Product[]>([]);
+    const [loading, setLoading]                     = useState(false);
+    const [search, setSearch]                       = useState('');
+    const [transferItem, setTransferItem]           = useState<StockItem | null>(null);
+    const [adjustItem, setAdjustItem]               = useState<StockItem | null>(null);
+    const [detailProduct, setDetailProduct]         = useState<Product | null>(null);
 
     useEffect(() => {
         let mounted = true;
@@ -487,7 +447,6 @@ export default function InventoryPage() {
                 warehouseService.getZones(warehouseId),
             ]);
             setStock(stockData);
-
             const locs: LocationWithZone[] = [];
             for (const zone of zones) {
                 const zoneLocs = await warehouseService.getLocations(zone.id);
@@ -503,15 +462,41 @@ export default function InventoryPage() {
         if (selectedWarehouse) await loadStock(selectedWarehouse);
     }
 
+    useBarcodeScanner({
+        enabled: !transferItem && !adjustItem && !detailProduct,
+        onScan: (barcode) => {
+            const found = stock.find(s => s.sku?.toLowerCase() === barcode.toLowerCase());
+            if (found) {
+                const product = products.find(p => p.id === found.productId);
+                if (product) setDetailProduct(product);
+            } else {
+                setSearch(barcode);
+            }
+        },
+    });
+
+    function handleExportStock() {
+        exportToCsv('inventory', filtered.map(item => ({
+            'Товар':     item.productName,
+            'SKU':       item.sku,
+            'Комірка':   item.location,
+            'Зона':      item.zoneName ?? '',
+            'Партія':    item.batch ?? '',
+            'Кількість': item.quantity,
+        })));
+    }
+
     const filtered = stock.filter(item =>
         item.productName?.toLowerCase().includes(search.toLowerCase()) ||
         item.sku?.toLowerCase().includes(search.toLowerCase()) ||
         item.location?.toLowerCase().includes(search.toLowerCase())
     );
 
-    const lowStock = stock.filter(s => s.quantity < 10).length;
+    const lowStock = stock.filter(item => {
+        const product = products.find(p => p.id === item.productId);
+        return product && product.minStock > 0 && item.quantity < product.minStock;
+    }).length;
 
-    // Знаходимо Product об'єкт по productId з рядка таблиці
     function openDetail(item: StockItem) {
         const product = products.find(p => p.id === item.productId);
         if (product) setDetailProduct(product);
@@ -519,21 +504,13 @@ export default function InventoryPage() {
 
     return (
         <div className="space-y-6">
-            {/* Modals */}
             {transferItem && (
-                <TransferModal
-                    item={transferItem}
-                    locations={allLocations}
-                    onClose={() => setTransferItem(null)}
-                    onDone={refresh}
-                />
+                <TransferModal item={transferItem} locations={allLocations}
+                               onClose={() => setTransferItem(null)} onDone={refresh} />
             )}
             {adjustItem && (
-                <AdjustModal
-                    item={adjustItem}
-                    onClose={() => setAdjustItem(null)}
-                    onDone={refresh}
-                />
+                <AdjustModal item={adjustItem}
+                             onClose={() => setAdjustItem(null)} onDone={refresh} />
             )}
             {detailProduct && (
                 <ProductDetailDrawer
@@ -545,13 +522,28 @@ export default function InventoryPage() {
                 />
             )}
 
-            {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-xl font-bold" style={{ color: '#f1f5f9' }}>Інвентаризація</h1>
                     <p className="text-sm mt-1" style={{ color: '#475569' }}>Залишки товарів на складі</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleExportStock}
+                        disabled={filtered.length === 0}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all disabled:opacity-40"
+                        style={{
+                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            color: '#94a3b8',
+                        }}
+                        onMouseEnter={e => { if (filtered.length > 0) e.currentTarget.style.color = '#f1f5f9'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; }}
+                        title="Експортувати в CSV"
+                    >
+                        <Download size={14} /> CSV
+                    </button>
+
                     <select
                         onChange={e => {
                             const product = products.find(p => p.id === e.target.value);
@@ -567,25 +559,22 @@ export default function InventoryPage() {
                 </div>
             </div>
 
-            {/* Low stock alert */}
             {lowStock > 0 && selectedWarehouse && (
                 <div className="flex items-center gap-3 px-4 py-3 rounded-lg"
                      style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)' }}>
                     <AlertTriangle size={16} style={{ color: '#f87171' }} />
                     <p className="text-sm" style={{ color: '#fca5a5' }}>
-                        {lowStock} позицій з кількістю менше 10 одиниць
+                        {lowStock} позицій нижче мінімального залишку
                     </p>
                 </div>
             )}
 
-            {/* Фільтри */}
             <div className="flex gap-3">
                 <select
                     value={selectedWarehouse}
                     onChange={e => loadStock(e.target.value)}
                     className="rounded-lg px-3 py-2.5 text-sm outline-none"
-                    style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.08)', color: selectedWarehouse ? '#f1f5f9' : '#475569' }}
-                >
+                    style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.08)', color: selectedWarehouse ? '#f1f5f9' : '#475569' }}>
                     <option value="">— Оберіть склад —</option>
                     {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                 </select>
@@ -595,16 +584,15 @@ export default function InventoryPage() {
                     <input
                         value={search}
                         onChange={e => setSearch(e.target.value)}
-                        placeholder="Пошук за товаром, SKU або коміркою..."
+                        placeholder="Пошук або штрих-код (Enter після сканування)..."
                         className="w-full rounded-lg pl-9 pr-4 py-2.5 text-sm outline-none"
                         style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.08)', color: '#f1f5f9' }}
-                        onFocus={e => (e.target.style.borderColor = 'rgba(99,102,241,0.4)')}
-                        onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.08)')}
+                        onFocus={e => (e.currentTarget.style.borderColor = 'rgba(99,102,241,0.4)')}
+                        onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
                     />
                 </div>
             </div>
 
-            {/* Таблиця */}
             {!selectedWarehouse ? (
                 <div className="flex flex-col items-center justify-center h-48 gap-3">
                     <Boxes size={36} style={{ color: '#1e293b' }} />
@@ -640,81 +628,92 @@ export default function InventoryPage() {
                         <span className="text-right">Дії</span>
                     </div>
 
-                    {filtered.map((item, i) => (
-                        <div
-                            key={i}
-                            className="grid items-center px-4 py-3 cursor-pointer"
-                            style={{
-                                gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 120px',
-                                background: i % 2 === 0 ? '#13151f' : 'rgba(255,255,255,0.01)',
-                                borderBottom: i < filtered.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                                transition: 'background 0.15s',
-                            }}
-                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(99,102,241,0.04)')}
-                            onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? '#13151f' : 'rgba(255,255,255,0.01)')}
-                            onClick={() => openDetail(item)}
-                        >
-                            <div className="flex items-center gap-2 min-w-0">
-                                <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
-                                     style={{ background: 'rgba(99,102,241,0.1)' }}>
-                                    <Package size={13} style={{ color: '#6366f1' }} />
+                    {filtered.map((item, i) => {
+                        const product = products.find(p => p.id === item.productId);
+                        const isLow   = product && product.minStock > 0 && item.quantity < product.minStock;
+                        return (
+                            <div
+                                key={i}
+                                className="grid items-center px-4 py-3 cursor-pointer"
+                                style={{
+                                    gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 120px',
+                                    background: i % 2 === 0 ? '#13151f' : 'rgba(255,255,255,0.01)',
+                                    borderBottom: i < filtered.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                                    transition: 'background 0.15s',
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(99,102,241,0.04)')}
+                                onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? '#13151f' : 'rgba(255,255,255,0.01)')}
+                                onClick={() => openDetail(item)}
+                            >
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
+                                         style={{ background: 'rgba(99,102,241,0.1)' }}>
+                                        <Package size={13} style={{ color: '#6366f1' }} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-medium truncate" style={{ color: '#f1f5f9' }}>
+                                            {item.productName}
+                                        </p>
+                                    </div>
+                                    <ChevronRight size={13} style={{ color: '#334155', flexShrink: 0 }} />
                                 </div>
-                                <div className="min-w-0">
-                                    <p className="text-sm font-medium truncate" style={{ color: '#f1f5f9' }}>
-                                        {item.productName}
-                                    </p>
+
+                                <span className="text-xs font-mono" style={{ color: '#94a3b8' }}>{item.sku}</span>
+
+                                <div className="flex flex-col">
+                                    <div className="flex items-center gap-1.5">
+                                        <MapPin size={12} style={{ color: '#6366f1' }} />
+                                        <span className="text-xs font-mono" style={{ color: '#94a3b8' }}>{item.location}</span>
+                                    </div>
+                                    {item.zoneName && (
+                                        <span className="text-xs ml-4" style={{ color: '#334155' }}>{item.zoneName}</span>
+                                    )}
                                 </div>
-                                <ChevronRight size={13} style={{ color: '#334155', flexShrink: 0 }} />
-                            </div>
 
-                            <span className="text-xs font-mono" style={{ color: '#94a3b8' }}>{item.sku}</span>
+                                <span className="text-xs font-mono" style={{ color: '#475569' }}>
+                                    {item.batch ?? '—'}
+                                </span>
 
-                            <div className="flex flex-col">
-                                <div className="flex items-center gap-1.5">
-                                    <MapPin size={12} style={{ color: '#6366f1' }} />
-                                    <span className="text-xs font-mono" style={{ color: '#94a3b8' }}>{item.location}</span>
+                                <div className="text-right">
+                                    <span className="text-sm font-semibold"
+                                          style={{ color: isLow ? '#f87171' : '#f1f5f9' }}>
+                                        {item.quantity}
+                                    </span>
+                                    {isLow && product && (
+                                        <p className="text-xs" style={{ color: '#f87171' }}>
+                                            мін: {product.minStock}
+                                        </p>
+                                    )}
                                 </div>
-                                {item.zoneName && (
-                                    <span className="text-xs ml-4" style={{ color: '#334155' }}>{item.zoneName}</span>
-                                )}
+
+                                <div className="flex items-center justify-end gap-1"
+                                     onClick={e => e.stopPropagation()}>
+                                    {canManage && (
+                                        <>
+                                            <button
+                                                onClick={() => setTransferItem(item)}
+                                                className="p-1.5 rounded-md"
+                                                style={{ color: '#475569' }}
+                                                onMouseEnter={e => (e.currentTarget.style.color = '#818cf8')}
+                                                onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+                                                title="Перемістити">
+                                                <ArrowLeftRight size={14} />
+                                            </button>
+                                            <button
+                                                onClick={() => setAdjustItem(item)}
+                                                className="p-1.5 rounded-md"
+                                                style={{ color: '#475569' }}
+                                                onMouseEnter={e => (e.currentTarget.style.color = '#f59e0b')}
+                                                onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+                                                title="Скоригувати залишки">
+                                                <SlidersHorizontal size={14} />
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
                             </div>
-
-                            <span className="text-xs font-mono" style={{ color: '#475569' }}>
-                                {item.batch ?? '—'}
-                            </span>
-
-                            <span className="text-right text-sm font-semibold"
-                                  style={{ color: item.quantity < 10 ? '#f87171' : '#f1f5f9' }}>
-                                {item.quantity}
-                            </span>
-
-                            <div className="flex items-center justify-end gap-1"
-                                 onClick={e => e.stopPropagation()}>
-                                <button
-                                    onClick={() => setTransferItem(item)}
-                                    className="p-1.5 rounded-md"
-                                    style={{ color: '#475569' }}
-                                    onMouseEnter={e => (e.currentTarget.style.color = '#818cf8')}
-                                    onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
-                                    title="Перемістити"
-                                >
-                                    <ArrowLeftRight size={14} />
-                                </button>
-                                {canManage && (
-                                    <button
-                                        onClick={() => setAdjustItem(item)}
-                                        className="p-1.5 rounded-md"
-                                        style={{ color: '#475569' }}
-                                        onMouseEnter={e => (e.currentTarget.style.color = '#f59e0b')}
-                                        onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
-                                        title="Скоригувати залишки"
-                                    >
-                                        <SlidersHorizontal size={14} />
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </div>
