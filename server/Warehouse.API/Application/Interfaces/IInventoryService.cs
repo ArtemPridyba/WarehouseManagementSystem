@@ -11,4 +11,5 @@ public interface IInventoryService
     Task<bool> InternalTransferAsync(TransferRequest request);
     Task<bool> AdjustStockAsync(AdjustmentRequest request);
     Task<PagedResult<InventoryTransactionDto>> GetTransactionsAsync(GetTransactionsQuery query);
+    Task<StockCountResultDto> ProcessStockCountAsync(StockCountRequest request);
 }

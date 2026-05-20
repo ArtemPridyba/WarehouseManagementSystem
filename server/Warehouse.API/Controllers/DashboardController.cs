@@ -45,4 +45,11 @@ public class DashboardController : ControllerBase
     {
         return Ok(await _dashboardService.GetStockTurnoverAsync(days));
     }
+    
+    [HttpGet("low-stock")]
+    public async Task<IActionResult> GetLowStock()
+    {
+        var result = await _dashboardService.GetLowStockProductsAsync();
+        return Ok(result);
+    }
 }

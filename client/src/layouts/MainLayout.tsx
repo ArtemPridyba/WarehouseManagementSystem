@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import {NavLink, Outlet, useNavigate} from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard,
     Warehouse,
@@ -18,8 +18,6 @@ import {
 import { useAuth, useLogout, useRole } from '../hooks/useAuth';
 import NotificationBell from "../components/NotificationBell.tsx";
 
-// ─── Навігаційні пункти ───────────────────────────────────────────────────────
-
 interface NavItem {
     to: string;
     label: string;
@@ -31,8 +29,8 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
     { to: '/dashboard',    label: 'Дашборд',       icon: <LayoutDashboard size={18} />, hideForWorker: true },
     { to: '/tasks',        label: 'Завдання',       icon: <ClipboardList size={18} /> },
-    { to: '/warehouse',    label: 'Топологія',      icon: <Warehouse size={18} />, hideForWorker: true },
-    { to: '/inventory',    label: 'Інвентаризація', icon: <Boxes size={18} />, hideForWorker: true },
+    { to: '/warehouse',    label: 'Топологія',      icon: <Warehouse size={18} /> },
+    { to: '/inventory',    label: 'Інвентаризація', icon: <Boxes size={18} /> },
     { to: '/transactions', label: 'Історія',        icon: <History size={18} /> },
     { to: '/products',     label: 'Товари',         icon: <Package size={18} />, hideForWorker: true },
     { to: '/inbound',      label: 'Прихід',         icon: <ArrowDownToLine size={18} /> },
@@ -40,15 +38,11 @@ const NAV_ITEMS: NavItem[] = [
     { to: '/users',        label: 'Користувачі',    icon: <Users size={18} />, adminOnly: true },
 ];
 
-// ─── Role config ──────────────────────────────────────────────────────────────
-
 const ROLE_CONFIG: Record<string, { bg: string; color: string; label: string }> = {
     Admin:   { bg: 'rgba(99,102,241,0.15)',  color: '#818cf8', label: 'Адмін' },
     Manager: { bg: 'rgba(245,158,11,0.15)',  color: '#f59e0b', label: 'Менеджер' },
     Worker:  { bg: 'rgba(20,184,166,0.15)',  color: '#2dd4bf', label: 'Комірник' },
 };
-
-// ─── Компонент ────────────────────────────────────────────────────────────────
 
 export default function MainLayout() {
     const { user } = useAuth();
@@ -68,8 +62,6 @@ export default function MainLayout() {
 
     return (
         <div className="flex h-screen overflow-hidden" style={{ background: '#0f1117' }}>
-
-            {/* ── Mobile overlay ─────────────────────────────────────────── */}
             {mobileOpen && (
                 <div
                     className="fixed inset-0 z-20 lg:hidden"
@@ -78,7 +70,6 @@ export default function MainLayout() {
                 />
             )}
 
-            {/* ── Sidebar ────────────────────────────────────────────────── */}
             <aside
                 className={`
                     fixed lg:relative z-30 flex flex-col h-full transition-all duration-300
@@ -87,7 +78,6 @@ export default function MainLayout() {
                 `}
                 style={{ background: '#13151f', borderRight: '1px solid rgba(255,255,255,0.06)' }}
             >
-                {/* Лого */}
                 <div
                     className="flex items-center gap-3 px-4 py-5"
                     style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
@@ -118,7 +108,6 @@ export default function MainLayout() {
                     </button>
                 </div>
 
-                {/* Навігація */}
                 <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
                     {visibleItems.map(item => (
                         <NavLink
@@ -141,7 +130,6 @@ export default function MainLayout() {
                     ))}
                 </nav>
 
-                {/* Юзер + логаут */}
                 <div className="px-2 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                     {!collapsed && (
                         <div
@@ -164,7 +152,6 @@ export default function MainLayout() {
                                 {roleConfig.label}
                             </span>
                         </div>
-
                     )}
 
                     <button
@@ -180,10 +167,7 @@ export default function MainLayout() {
                 </div>
             </aside>
 
-            {/* ── Main area ──────────────────────────────────────────────── */}
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-
-                {/* Header */}
                 <header
                     className="flex items-center gap-4 px-6 py-4 shrink-0"
                     style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#13151f' }}
@@ -198,10 +182,8 @@ export default function MainLayout() {
 
                     <div className="flex-1" />
 
-                    {/* Нотифікації */}
                     <NotificationBell />
 
-                    {/* Role badge в хедері */}
                     <div
                         className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
                         style={{ background: roleConfig.bg, color: roleConfig.color }}
@@ -209,7 +191,6 @@ export default function MainLayout() {
                         {roleConfig.label}
                     </div>
 
-                    {/* Tenant badge */}
                     <div
                         className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs"
                         style={{
@@ -223,7 +204,6 @@ export default function MainLayout() {
                     </div>
                 </header>
 
-                {/* Page content */}
                 <main className="flex-1 overflow-y-auto p-6">
                     <Outlet />
                 </main>

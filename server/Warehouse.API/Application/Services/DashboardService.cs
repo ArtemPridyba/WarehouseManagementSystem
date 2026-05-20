@@ -19,12 +19,21 @@ public class DashboardService : IDashboardService
     {
         var now = DateTime.UtcNow;
 
+        var lowStockCount = await _context.Products
+            .Where(p => p.MinStock > 0)
+            .CountAsync(p =>
+                _context.InventoryBalances
+                    .Where(b => b.ProductId == p.Id)
+                    .Sum(b => (decimal?)b.Quantity) < p.MinStock
+                || !_context.InventoryBalances.Any(b => b.ProductId == p.Id)
+            );
+        
         var summary = new SummaryStats(
             TotalProducts: await _context.Products.CountAsync(),
             TotalItemsCount: await _context.InventoryBalances.SumAsync(b => b.Quantity),
             PendingInboundOrders: await _context.InboundOrders.CountAsync(o => o.Status != OrderStatus.Completed),
             PendingOutboundOrders: await _context.OutboundOrders.CountAsync(o => o.Status != OrderStatus.Completed),
-            LowStockAlerts: await _context.InventoryBalances.Where(b => b.Quantity < 10).CountAsync()
+            LowStockAlerts:        lowStockCount
         );
 
         var categoryData = await _context.InventoryBalances
@@ -125,5 +134,36 @@ public class DashboardService : IDashboardService
         }
 
         return result;
+    }
+    
+    public async Task<IEnumerable<LowStockDto>> GetLowStockProductsAsync()
+    {
+        var products = await _context.Products
+            .Where(p => p.MinStock > 0)
+            .AsNoTracking()
+            .ToListAsync();
+
+        var result = new List<LowStockDto>();
+
+        foreach (var p in products)
+        {
+            var currentStock = await _context.InventoryBalances
+                .Where(b => b.ProductId == p.Id)
+                .SumAsync(b => (decimal?)b.Quantity) ?? 0;
+
+            if (currentStock < p.MinStock)
+            {
+                result.Add(new LowStockDto(
+                    p.Id,
+                    p.Name,
+                    p.SKU,
+                    currentStock,
+                    p.MinStock,
+                    p.MinStock - currentStock
+                ));
+            }
+        }
+
+        return result.OrderByDescending(x => x.Deficit);
     }
 }

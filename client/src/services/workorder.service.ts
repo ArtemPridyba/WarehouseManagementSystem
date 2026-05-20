@@ -4,7 +4,7 @@ import type {
     CreateWorkOrderRequest,
     UpdateWorkOrderStatusRequest,
     AssignWorkOrderRequest,
-    WorkOrderStatus, NotificationsDto,
+    WorkOrderStatus, NotificationsDto, GetWorkOrdersQuery, PagedResult,
 } from '../types';
 
 export const workOrderService = {
@@ -39,6 +39,12 @@ export const workOrderService = {
     },
     async getNotifications(): Promise<NotificationsDto> {
         const res = await axiosInstance.get<NotificationsDto>('/WorkOrders/notifications');
+        return res.data;
+    },
+    async getPaged(params: GetWorkOrdersQuery): Promise<PagedResult<WorkOrderDto>> {
+        const res = await axiosInstance.get<PagedResult<WorkOrderDto>>(
+            '/WorkOrders/paged', { params }
+        );
         return res.data;
     },
 };

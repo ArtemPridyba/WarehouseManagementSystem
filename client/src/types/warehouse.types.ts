@@ -93,3 +93,22 @@ export interface AdjustmentRequest {
 export interface LocationWithZone extends LocationEntity {
     zoneName: string;
 }
+
+export interface StockCountRequest {
+    workOrderId:    string;
+    locationId:     string;
+    productId:      string;
+    batchId?:       string;
+    actualQuantity: number;
+    note?:          string;
+}
+
+export interface StockCountResult {
+    productId:      string;
+    productName:    string;
+    locationCode:   string;
+    systemQuantity: number;
+    actualQuantity: number;
+    discrepancy:    number;
+    hasDiscrepancy: boolean;
+}

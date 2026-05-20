@@ -6,7 +6,7 @@ import type {
     AdjustmentRequest,
     PagedResult,
     InventoryTransactionItem,
-    PagedQuery,
+    PagedQuery, StockCountRequest, StockCountResult,
 } from '../types';
 
 export interface GetTransactionsQuery extends PagedQuery {
@@ -39,6 +39,11 @@ export const inventoryService = {
         const res = await axiosInstance.get<PagedResult<InventoryTransactionItem>>(
             '/Inventory/transactions', { params }
         );
+        return res.data;
+    },
+
+    async stockCount(data: StockCountRequest): Promise<StockCountResult> {
+        const res = await axiosInstance.post<StockCountResult>('/Inventory/stock-count', data);
         return res.data;
     },
 };

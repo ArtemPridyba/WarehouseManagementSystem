@@ -1,12 +1,16 @@
 ﻿import { useEffect, useState } from 'react';
 import {
     ArrowDownToLine, Plus, Trash2, Loader2,
-    X, ChevronDown, ChevronRight, PackageCheck,
+    X, ChevronDown, ChevronRight, PackageCheck, Download,
 } from 'lucide-react';
 import { inboundService } from '../services/inbound.service';
 import { productService } from '../services/product.service';
 import { warehouseService } from '../services/warehouse.service';
 import { useAuth } from '../hooks/useAuth';
+import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
+import { exportToCsv } from '../utils/exportCsv';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmModal from '../components/ConfirmModal';
 import type {
     InboundOrder, InboundOrderRequest, ReceiveProductRequest,
     Product, LocationEntity, OrderStatus,
@@ -36,18 +40,12 @@ function CreateOrderModal({ products, onClose, onCreate }: {
     onCreate: () => void;
 }) {
     const [orderNumber, setOrderNumber] = useState('');
-    const [items, setItems] = useState([{ productId: '', quantity: 1 }]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [items, setItems]             = useState([{ productId: '', quantity: 1 }]);
+    const [loading, setLoading]         = useState(false);
+    const [error, setError]             = useState<string | null>(null);
 
-    function addItem() {
-        setItems(p => [...p, { productId: '', quantity: 1 }]);
-    }
-
-    function removeItem(i: number) {
-        setItems(p => p.filter((_, idx) => idx !== i));
-    }
-
+    function addItem() { setItems(p => [...p, { productId: '', quantity: 1 }]); }
+    function removeItem(i: number) { setItems(p => p.filter((_, idx) => idx !== i)); }
     function updateItem(i: number, field: 'productId' | 'quantity', value: string | number) {
         setItems(p => p.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
     }
@@ -175,24 +173,26 @@ function ReceiveModal({ order, onClose, onReceive }: {
     onClose: () => void;
     onReceive: () => void;
 }) {
-    const [warehouses, setWarehouses] = useState<{ id: string; name: string }[]>([]);
-    const [locations, setLocations] = useState<LocationEntity[]>([]);
+    const [warehouses, setWarehouses]               = useState<{ id: string; name: string }[]>([]);
+    const [locations, setLocations]                 = useState<LocationEntity[]>([]);
     const [selectedWarehouse, setSelectedWarehouse] = useState('');
     const [form, setForm] = useState<ReceiveProductRequest>({
         inboundOrderId: order.id,
-        productId: order.items[0]?.productId ?? '',
-        locationId: '',
-        quantity: order.items[0]?.quantity ?? 1,
-        batchNumber: '',
+        productId:      order.items[0]?.productId ?? '',
+        locationId:     '',
+        quantity:       order.items[0]?.quantity ?? 1,
+        batchNumber:    '',
         expirationDate: '',
     });
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError]     = useState<string | null>(null);
 
     useEffect(() => {
-        warehouseService.getAll().then(data =>
-            setWarehouses(data.map(w => ({ id: w.id, name: w.name })))
-        );
+        let mounted = true;
+        warehouseService.getAll().then(data => {
+            if (mounted) setWarehouses(data.map(w => ({ id: w.id, name: w.name })));
+        });
+        return () => { mounted = false; };
     }, []);
 
     async function handleWarehouseChange(warehouseId: string) {
@@ -212,7 +212,7 @@ function ReceiveModal({ order, onClose, onReceive }: {
         try {
             await inboundService.receive({
                 ...form,
-                batchNumber: form.batchNumber || undefined,
+                batchNumber:    form.batchNumber    || undefined,
                 expirationDate: form.expirationDate || undefined,
             });
             onReceive();
@@ -264,7 +264,6 @@ function ReceiveModal({ order, onClose, onReceive }: {
                             ))}
                         </select>
                     </div>
-
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Склад *</label>
                         <select value={selectedWarehouse}
@@ -275,7 +274,6 @@ function ReceiveModal({ order, onClose, onReceive }: {
                             {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                         </select>
                     </div>
-
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Комірка *</label>
                         <select value={form.locationId}
@@ -287,7 +285,6 @@ function ReceiveModal({ order, onClose, onReceive }: {
                             {locations.map(l => <option key={l.id} value={l.id}>{l.code}</option>)}
                         </select>
                     </div>
-
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Кількість *</label>
                         <input type="number" min={0.001} step={0.001}
@@ -299,12 +296,9 @@ function ReceiveModal({ order, onClose, onReceive }: {
                                onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
                         />
                     </div>
-
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>
-                                Номер партії
-                            </label>
+                            <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Номер партії</label>
                             <input value={form.batchNumber}
                                    onChange={e => setForm(p => ({ ...p, batchNumber: e.target.value }))}
                                    placeholder="BATCH-001"
@@ -315,9 +309,7 @@ function ReceiveModal({ order, onClose, onReceive }: {
                             />
                         </div>
                         <div>
-                            <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>
-                                Термін придатності
-                            </label>
+                            <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Термін придатності</label>
                             <input type="date"
                                    value={form.expirationDate}
                                    onChange={e => setForm(p => ({ ...p, expirationDate: e.target.value }))}
@@ -373,9 +365,7 @@ function OrderRow({ order, canManage, onDelete, onReceive }: {
                 <span className="text-sm font-mono font-medium flex-1" style={{ color: '#f1f5f9' }}>
                     {order.orderNumber}
                 </span>
-                <span className="text-xs" style={{ color: '#475569' }}>
-                    {order.items.length} поз.
-                </span>
+                <span className="text-xs" style={{ color: '#475569' }}>{order.items.length} поз.</span>
                 <StatusBadge status={order.status} />
                 <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                     {order.status !== 'Completed' && order.status !== 'Cancelled' && (
@@ -408,9 +398,8 @@ function OrderRow({ order, canManage, onDelete, onReceive }: {
                              style={{ gridTemplateColumns: '2fr 1fr 1fr', borderTop: '1px solid rgba(255,255,255,0.03)' }}>
                             <span style={{ color: '#94a3b8' }}>{item.product?.name ?? '—'}</span>
                             <span className="text-right" style={{ color: '#f1f5f9' }}>{item.quantity}</span>
-                            <span className="text-right" style={{
-                                color: item.receivedQuantity >= item.quantity ? '#2dd4bf' : '#f59e0b',
-                            }}>
+                            <span className="text-right"
+                                  style={{ color: item.receivedQuantity >= item.quantity ? '#2dd4bf' : '#f59e0b' }}>
                                 {item.receivedQuantity}
                             </span>
                         </div>
@@ -424,14 +413,16 @@ function OrderRow({ order, canManage, onDelete, onReceive }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function InboundPage() {
-    const { user } = useAuth();
-    const canManage = user?.role === 'Admin' || user?.role === 'Manager';
+    const { user }      = useAuth();
+    const canManage     = user?.role === 'Admin' || user?.role === 'Manager';
+    const { confirm, options, handleConfirm, handleClose } = useConfirm();
 
-    const [orders, setOrders] = useState<InboundOrder[]>([]);
-    const [products, setProducts] = useState<Product[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [orders, setOrders]         = useState<InboundOrder[]>([]);
+    const [products, setProducts]     = useState<Product[]>([]);
+    const [loading, setLoading]       = useState(true);
     const [createModal, setCreateModal] = useState(false);
     const [receiveOrder, setReceiveOrder] = useState<InboundOrder | null>(null);
+    const [barcodeSearch, setBarcodeSearch] = useState('');
 
     async function refresh() {
         const [o, p] = await Promise.all([
@@ -449,23 +440,60 @@ export default function InboundPage() {
                 inboundService.getAll(),
                 productService.getAll(),
             ]);
-            if (mounted) {
-                setOrders(o);
-                setProducts(p);
-                setLoading(false);
-            }
+            if (mounted) { setOrders(o); setProducts(p); setLoading(false); }
         }
         init();
         return () => { mounted = false; };
     }, []);
 
-    async function handleDelete(id: string) {
-        await inboundService.delete(id);
-        setOrders(p => p.filter(o => o.id !== id));
+    // ── Штрих-код сканер ──────────────────────────────────────────────────────
+    useBarcodeScanner({
+        enabled: !receiveOrder && !createModal,
+        onScan: (barcode) => {
+            const found = orders.find(
+                o => o.orderNumber.toLowerCase() === barcode.toLowerCase()
+            );
+            if (found && found.status !== 'Completed' && found.status !== 'Cancelled') {
+                setReceiveOrder(found);
+            } else {
+                setBarcodeSearch(barcode);
+            }
+        },
+    });
+
+    // ── CSV Експорт ───────────────────────────────────────────────────────────
+    function handleExport() {
+        exportToCsv('inbound_orders', orders.map(order => ({
+            'Номер замовлення':  order.orderNumber,
+            'Статус':            ORDER_STATUS_LABELS[order.status],
+            'Кількість позицій': order.items.length,
+            'Прийнято позицій':  order.items.filter(i => i.receivedQuantity >= i.quantity).length,
+        })));
     }
+
+    async function handleDeleteClick(id: string, orderNumber: string) {
+        const confirmed = await confirm({
+            title:        'Видалити замовлення?',
+            message:      `Замовлення "${orderNumber}" буде видалено. Цю дію неможливо скасувати.`,
+            confirmLabel: 'Видалити',
+            danger:       true,
+        });
+        if (confirmed) {
+            await inboundService.delete(id);
+            setOrders(p => p.filter(o => o.id !== id));
+        }
+    }
+
+    // Фільтрація по пошуку
+    const filteredOrders = barcodeSearch
+        ? orders.filter(o => o.orderNumber.toLowerCase().includes(barcodeSearch.toLowerCase()))
+        : orders;
 
     return (
         <div className="space-y-6">
+            {options && (
+                <ConfirmModal {...options} onConfirm={handleConfirm} onClose={handleClose} />
+            )}
             {createModal && (
                 <CreateOrderModal
                     products={products}
@@ -481,39 +509,73 @@ export default function InboundPage() {
                 />
             )}
 
-            <div className="flex items-center justify-between">
+            {/* Header */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <h1 className="text-xl font-bold" style={{ color: '#f1f5f9' }}>Прихід товарів</h1>
                     <p className="text-sm mt-1" style={{ color: '#475569' }}>
                         {orders.length} замовлень
                     </p>
                 </div>
-                {canManage && (
-                    <button onClick={() => setCreateModal(true)}
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold"
-                            style={{ background: '#6366f1', color: '#fff' }}>
-                        <Plus size={16} /> Нове замовлення
+                <div className="flex items-center gap-2">
+                    {/* Пошук / сканер */}
+                    <input
+                        value={barcodeSearch}
+                        onChange={e => setBarcodeSearch(e.target.value)}
+                        placeholder="Номер замовлення або штрих-код..."
+                        className="rounded-lg px-3 py-2 text-sm outline-none font-mono"
+                        style={{
+                            width: 260,
+                            background: '#13151f',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            color: '#f1f5f9',
+                        }}
+                        onFocus={e => (e.target.style.borderColor = 'rgba(99,102,241,0.4)')}
+                        onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.08)')}
+                    />
+                    {/* CSV */}
+                    <button
+                        onClick={handleExport}
+                        disabled={orders.length === 0}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all disabled:opacity-40"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8' }}
+                        onMouseEnter={e => { if (orders.length > 0) e.currentTarget.style.color = '#f1f5f9'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; }}
+                        title="Експортувати в CSV"
+                    >
+                        <Download size={14} /> CSV
                     </button>
-                )}
+                    {/* Нове замовлення */}
+                    {canManage && (
+                        <button onClick={() => setCreateModal(true)}
+                                className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold"
+                                style={{ background: '#6366f1', color: '#fff' }}>
+                            <Plus size={16} /> Нове замовлення
+                        </button>
+                    )}
+                </div>
             </div>
 
+            {/* List */}
             {loading ? (
                 <div className="flex items-center justify-center h-48">
                     <Loader2 size={28} className="animate-spin" style={{ color: '#6366f1' }} />
                 </div>
-            ) : orders.length === 0 ? (
+            ) : filteredOrders.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-48 gap-3">
                     <ArrowDownToLine size={36} style={{ color: '#1e293b' }} />
-                    <p className="text-sm" style={{ color: '#334155' }}>Замовлень приходу ще немає</p>
+                    <p className="text-sm" style={{ color: '#334155' }}>
+                        {barcodeSearch ? 'Замовлення не знайдено' : 'Замовлень приходу ще немає'}
+                    </p>
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {orders.map(order => (
+                    {filteredOrders.map(order => (
                         <OrderRow
                             key={order.id}
                             order={order}
                             canManage={canManage}
-                            onDelete={() => handleDelete(order.id)}
+                            onDelete={() => handleDeleteClick(order.id, order.orderNumber)}
                             onReceive={() => setReceiveOrder(order)}
                         />
                     ))}

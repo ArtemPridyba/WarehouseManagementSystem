@@ -1,9 +1,14 @@
 ﻿import axiosInstance from '../api/axiosInstance';
-import type { Product, UpsertProductRequest } from '../types';
+import type {GetProductsQuery, PagedResult, Product, UpsertProductRequest} from '../types';
 
 export const productService = {
     async getAll(): Promise<Product[]> {
         const res = await axiosInstance.get<Product[]>('/Products');
+        return res.data;
+    },
+
+    async getPaged(params: GetProductsQuery): Promise<PagedResult<Product>> {
+        const res = await axiosInstance.get<PagedResult<Product>>('/Products/paged', { params });
         return res.data;
     },
 

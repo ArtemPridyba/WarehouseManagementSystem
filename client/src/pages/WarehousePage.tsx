@@ -186,13 +186,13 @@ type Modal =
 
 export default function WarehousePage() {
     const { canManage } = useRole();
-    const [warehouses, setWarehouses]             = useState<WarehouseEntity[]>([]);
-    const [zones, setZones]                       = useState<Record<string, ZoneEntity[]>>({});
-    const [locations, setLocations]               = useState<Record<string, LocationEntity[]>>({});
+    const [warehouses, setWarehouses]               = useState<WarehouseEntity[]>([]);
+    const [zones, setZones]                         = useState<Record<string, ZoneEntity[]>>({});
+    const [locations, setLocations]                 = useState<Record<string, LocationEntity[]>>({});
     const [expandedWarehouses, setExpandedWarehouses] = useState<Set<string>>(new Set());
-    const [expandedZones, setExpandedZones]       = useState<Set<string>>(new Set());
-    const [loading, setLoading]                   = useState(true);
-    const [modal, setModal]                       = useState<Modal | null>(null);
+    const [expandedZones, setExpandedZones]         = useState<Set<string>>(new Set());
+    const [loading, setLoading]                     = useState(true);
+    const [modal, setModal]                         = useState<Modal | null>(null);
 
     // Form state
     const [whForm, setWhForm]   = useState({ name: '', address: '' });
@@ -317,7 +317,7 @@ export default function WarehousePage() {
         }
     }
 
-    // ── Delete handlers з підтвердженням ────────────────────────────────────────
+    // ── Delete handlers ────────────────────────────────────────────────────────
 
     function confirmDeleteWarehouse(w: WarehouseEntity) {
         setConfirmDelete({

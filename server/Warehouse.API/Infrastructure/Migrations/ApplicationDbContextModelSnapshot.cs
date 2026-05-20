@@ -539,6 +539,9 @@ namespace Warehouse.API.Infrastructure.Migrations
                     b.Property<bool>("IsSerialTracked")
                         .HasColumnType("boolean");
 
+                    b.Property<decimal>("MinStock")
+                        .HasColumnType("numeric");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");

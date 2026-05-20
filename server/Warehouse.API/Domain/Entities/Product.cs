@@ -14,4 +14,6 @@ public class Product : BaseEntity, ITenantEntity
 
     public bool IsBatchTracked { get; set; }
     public bool IsSerialTracked { get; set; }
+    
+    public decimal MinStock { get; set; } = 0;
 }

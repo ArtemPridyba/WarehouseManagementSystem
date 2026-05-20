@@ -1,12 +1,18 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 import {
     Plus, Pencil, Trash2, Loader2, X,
-    Search, Package, CheckCircle, Circle, Tag,
+    Search, Package, CheckCircle, Circle, Tag, Download,
 } from 'lucide-react';
 import { productService } from '../services/product.service';
 import { categoryService } from '../services/category.service';
 import { useRole } from '../hooks/useAuth';
-import type { Product, UpsertProductRequest, ProductCategory } from '../types';
+import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
+import { exportToCsv } from '../utils/exportCsv';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmModal from '../components/ConfirmModal';
+import type { Product, UpsertProductRequest, ProductCategory, PagedResult } from '../types';
+
+const PAGE_SIZE = 20;
 
 // ─── Category Modal ───────────────────────────────────────────────────────────
 
@@ -15,11 +21,11 @@ function CategoryModal({ onClose, onSaved }: {
     onSaved: (categories: ProductCategory[]) => void;
 }) {
     const [categories, setCategories] = useState<ProductCategory[]>([]);
-    const [newName, setNewName] = useState('');
-    const [editId, setEditId] = useState<string | null>(null);
-    const [editName, setEditName] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [newName, setNewName]       = useState('');
+    const [editId, setEditId]         = useState<string | null>(null);
+    const [editName, setEditName]     = useState('');
+    const [loading, setLoading]       = useState(false);
+    const [error, setError]           = useState<string | null>(null);
 
     useEffect(() => {
         categoryService.getAll().then(setCategories);
@@ -88,7 +94,6 @@ function CategoryModal({ onClose, onSaved }: {
                     </div>
                 )}
 
-                {/* Список */}
                 <div className="space-y-1 mb-4 max-h-60 overflow-y-auto">
                     {categories.length === 0 ? (
                         <p className="text-sm text-center py-4" style={{ color: '#334155' }}>
@@ -142,7 +147,6 @@ function CategoryModal({ onClose, onSaved }: {
                     )}
                 </div>
 
-                {/* Нова категорія */}
                 <div className="flex gap-2 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                     <input
                         value={newName}
@@ -172,23 +176,22 @@ function CategoryModal({ onClose, onSaved }: {
 
 // ─── Product Modal ────────────────────────────────────────────────────────────
 
-interface ProductModalProps {
+function ProductModal({ product, categories, onClose, onSave }: {
     product?: Product;
     categories: ProductCategory[];
     onClose: () => void;
     onSave: (data: UpsertProductRequest) => Promise<void>;
-}
-
-function ProductModal({ product, categories, onClose, onSave }: ProductModalProps) {
+}) {
     const [form, setForm] = useState<UpsertProductRequest>({
-        name: product?.name ?? '',
-        sku: product?.sku ?? '',
-        barcode: product?.barcode ?? '',
-        categoryId: product?.categoryId ?? '',
+        name:           product?.name           ?? '',
+        sku:            product?.sku            ?? '',
+        barcode:        product?.barcode        ?? '',
+        categoryId:     product?.categoryId     ?? '',
         isBatchTracked: product?.isBatchTracked ?? false,
+        minStock:       product?.minStock       ?? 0,
     });
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError]     = useState<string | null>(null);
 
     async function handleSubmit() {
         setError(null);
@@ -196,7 +199,7 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
         try {
             await onSave({
                 ...form,
-                barcode: form.barcode || undefined,
+                barcode:    form.barcode    || undefined,
                 categoryId: form.categoryId || undefined,
             });
             onClose();
@@ -207,10 +210,21 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
         }
     }
 
+    const inputStyle: React.CSSProperties = {
+        background: 'rgba(255,255,255,0.04)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        color: '#f1f5f9',
+        borderRadius: 8,
+        padding: '10px 12px',
+        fontSize: 13,
+        width: '100%',
+        outline: 'none',
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
              style={{ background: 'rgba(0,0,0,0.7)' }}>
-            <div className="w-full max-w-md rounded-xl p-6"
+            <div className="w-full max-w-md rounded-xl p-6 max-h-[90vh] overflow-y-auto"
                  style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.08)' }}>
 
                 <div className="flex items-center justify-between mb-6">
@@ -231,9 +245,7 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Назва товару *</label>
                         <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                               placeholder="Наприклад: Ноутбук Dell XPS 15"
-                               className="w-full rounded-lg px-3 py-2.5 text-sm outline-none"
-                               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#f1f5f9' }}
+                               placeholder="Наприклад: Ноутбук Dell XPS 15" style={inputStyle}
                                onFocus={e => (e.target.style.borderColor = 'rgba(99,102,241,0.6)')}
                                onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')} />
                     </div>
@@ -241,9 +253,7 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Артикул (SKU) *</label>
                         <input value={form.sku} onChange={e => setForm(p => ({ ...p, sku: e.target.value }))}
-                               placeholder="DELL-XPS-15-001"
-                               className="w-full rounded-lg px-3 py-2.5 text-sm outline-none font-mono"
-                               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#f1f5f9' }}
+                               placeholder="DELL-XPS-15-001" className="font-mono" style={inputStyle}
                                onFocus={e => (e.target.style.borderColor = 'rgba(99,102,241,0.6)')}
                                onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')} />
                     </div>
@@ -251,9 +261,7 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Штрих-код</label>
                         <input value={form.barcode} onChange={e => setForm(p => ({ ...p, barcode: e.target.value }))}
-                               placeholder="1234567890123"
-                               className="w-full rounded-lg px-3 py-2.5 text-sm outline-none font-mono"
-                               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#f1f5f9' }}
+                               placeholder="1234567890123" className="font-mono" style={inputStyle}
                                onFocus={e => (e.target.style.borderColor = 'rgba(99,102,241,0.6)')}
                                onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')} />
                     </div>
@@ -261,14 +269,32 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
                     <div>
                         <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>Категорія</label>
                         <select value={form.categoryId} onChange={e => setForm(p => ({ ...p, categoryId: e.target.value }))}
-                                className="w-full rounded-lg px-3 py-2.5 text-sm outline-none"
-                                style={{ background: '#1e2130', border: '1px solid rgba(255,255,255,0.1)', color: '#f1f5f9' }}>
+                                style={{ ...inputStyle, background: '#1e2130' }}>
                             <option value="">— Без категорії —</option>
                             {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                     </div>
 
-                    <button type="button" onClick={() => setForm(p => ({ ...p, isBatchTracked: !p.isBatchTracked }))}
+                    <div>
+                        <label className="block text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>
+                            Мінімальний залишок
+                        </label>
+                        <input
+                            type="number" min={0} step={0.001}
+                            value={form.minStock}
+                            onChange={e => setForm(p => ({ ...p, minStock: parseFloat(e.target.value) || 0 }))}
+                            placeholder="0 — без обмежень"
+                            style={inputStyle}
+                            onFocus={e => (e.target.style.borderColor = 'rgba(99,102,241,0.6)')}
+                            onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
+                        />
+                        <p className="text-xs mt-1" style={{ color: '#334155' }}>
+                            При залишку нижче цього значення — попередження на Dashboard
+                        </p>
+                    </div>
+
+                    <button type="button"
+                            onClick={() => setForm(p => ({ ...p, isBatchTracked: !p.isBatchTracked }))}
                             className="flex items-center gap-2.5 text-sm"
                             style={{ color: form.isBatchTracked ? '#818cf8' : '#475569' }}>
                         {form.isBatchTracked
@@ -291,57 +317,8 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
                                 color: '#fff',
                                 cursor: loading || !form.name || !form.sku ? 'not-allowed' : 'pointer',
                             }}>
-                        {loading ? <Loader2 size={14} className="animate-spin" /> : null}
+                        {loading && <Loader2 size={14} className="animate-spin" />}
                         Зберегти
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-// ─── Delete Confirm ───────────────────────────────────────────────────────────
-
-function DeleteConfirm({ product, onClose, onConfirm }: {
-    product: Product; onClose: () => void; onConfirm: () => Promise<void>;
-}) {
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    async function handle() {
-        setLoading(true);
-        try { await onConfirm(); onClose(); }
-        catch (err: unknown) {
-            setError((err as { response?: { data?: string } })?.response?.data ?? 'Помилка видалення');
-        } finally { setLoading(false); }
-    }
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-             style={{ background: 'rgba(0,0,0,0.7)' }}>
-            <div className="w-full max-w-sm rounded-xl p-6"
-                 style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <h2 className="text-base font-semibold mb-2" style={{ color: '#f1f5f9' }}>Видалити товар?</h2>
-                <p className="text-sm mb-5" style={{ color: '#475569' }}>
-                    <span style={{ color: '#94a3b8' }}>{product.name}</span> буде видалено назавжди.
-                </p>
-                {error && (
-                    <div className="rounded-lg px-3 py-2 mb-4 text-sm"
-                         style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5' }}>
-                        {error}
-                    </div>
-                )}
-                <div className="flex gap-3">
-                    <button onClick={onClose}
-                            className="flex-1 rounded-lg py-2.5 text-sm font-medium"
-                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8' }}>
-                        Скасувати
-                    </button>
-                    <button onClick={handle} disabled={loading}
-                            className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold"
-                            style={{ background: '#ef4444', color: '#fff' }}>
-                        {loading ? <Loader2 size={14} className="animate-spin" /> : null}
-                        Видалити
                     </button>
                 </div>
             </div>
@@ -352,31 +329,59 @@ function DeleteConfirm({ product, onClose, onConfirm }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ProductsPage() {
-    const { isAdmin } = useRole();
-    const [products, setProducts] = useState<Product[]>([]);
-    const [categories, setCategories] = useState<ProductCategory[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [search, setSearch] = useState('');
-    const [filterCategory, setFilterCategory] = useState('');
-    const [modalOpen, setModalOpen] = useState(false);
-    const [categoryModalOpen, setCategoryModalOpen] = useState(false);
-    const [editProduct, setEditProduct] = useState<Product | undefined>();
-    const [deleteProduct, setDeleteProduct] = useState<Product | undefined>();
+    const { canManage }   = useRole();
+    const { confirm, options, handleConfirm, handleClose } = useConfirm();
 
+    const [categories, setCategories]     = useState<ProductCategory[]>([]);
+    const [result, setResult]             = useState<PagedResult<Product> | null>(null);
+    const [loading, setLoading]           = useState(true);
+    const [page, setPage]                 = useState(1);
+    const [search, setSearch]             = useState('');
+    const [filterCategory, setFilterCategory] = useState('');
+    const [modalOpen, setModalOpen]       = useState(false);
+    const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+    const [editProduct, setEditProduct]   = useState<Product | undefined>();
+
+    // Завантаження категорій
     useEffect(() => {
-        Promise.all([productService.getAll(), categoryService.getAll()])
-            .then(([p, c]) => { setProducts(p); setCategories(c); })
-            .finally(() => setLoading(false));
+        let mounted = true;
+        categoryService.getAll().then(c => { if (mounted) setCategories(c); });
+        return () => { mounted = false; };
     }, []);
 
-    const filtered = products.filter(p => {
-        const matchSearch =
-            p.name.toLowerCase().includes(search.toLowerCase()) ||
-            p.sku.toLowerCase().includes(search.toLowerCase()) ||
-            (p.barcode ?? '').includes(search);
-        const matchCategory = !filterCategory || p.categoryId === filterCategory;
-        return matchSearch && matchCategory;
+    // Завантаження товарів з пагінацією
+    const load = useCallback(async (p: number) => {
+        setLoading(true);
+        try {
+            const data = await productService.getPaged({
+                page:       p,
+                pageSize:   PAGE_SIZE,
+                search:     search     || undefined,
+                categoryId: filterCategory || undefined,
+            });
+            setResult(data);
+        } finally {
+            setLoading(false);
+        }
+    }, [search, filterCategory]);
+
+    useEffect(() => {
+        let mounted = true;
+        setPage(1);
+        load(1).then(() => { if (!mounted) return; });
+        return () => { mounted = false; };
+    }, [load]);
+
+    // Штрих-код сканер — підставляємо в пошук
+    useBarcodeScanner({
+        enabled: !modalOpen && !categoryModalOpen,
+        onScan: (barcode) => setSearch(barcode),
     });
+
+    function handlePageChange(next: number) {
+        setPage(next);
+        load(next);
+    }
 
     async function handleSave(data: UpsertProductRequest) {
         if (editProduct) {
@@ -384,31 +389,52 @@ export default function ProductsPage() {
         } else {
             await productService.create(data);
         }
-        const updated = await productService.getAll();
-        setProducts(updated);
+        await load(page);
     }
 
-    async function handleDelete() {
-        if (!deleteProduct) return;
-        await productService.delete(deleteProduct.id);
-        setProducts(prev => prev.filter(p => p.id !== deleteProduct.id));
+    async function handleDeleteClick(product: Product) {
+        const confirmed = await confirm({
+            title:        'Видалити товар?',
+            message:      `Товар "${product.name}" (${product.sku}) буде видалено назавжди. Цю дію неможливо скасувати.`,
+            confirmLabel: 'Видалити',
+            danger:       true,
+        });
+        if (confirmed) {
+            try {
+                await productService.delete(product.id);
+                await load(page);
+            } catch (err: unknown) {
+                const data = (err as { response?: { data?: unknown } })?.response?.data;
+                console.error(typeof data === 'string' ? data : 'Помилка видалення');
+            }
+        }
     }
+
+    // CSV Експорт
+    function handleExport() {
+        exportToCsv('products', (result?.items ?? []).map(p => ({
+            'Назва':       p.name,
+            'SKU':         p.sku,
+            'Штрих-код':   p.barcode ?? '',
+            'Категорія':   p.category?.name ?? '',
+            'Партійний':   p.isBatchTracked ? 'Так' : 'Ні',
+            'Мін. залишок': p.minStock,
+        })));
+    }
+
+    const products = result?.items ?? [];
 
     return (
         <div className="space-y-6">
+            {options && (
+                <ConfirmModal {...options} onConfirm={handleConfirm} onClose={handleClose} />
+            )}
             {modalOpen && (
                 <ProductModal
                     product={editProduct}
                     categories={categories}
                     onClose={() => { setModalOpen(false); setEditProduct(undefined); }}
                     onSave={handleSave}
-                />
-            )}
-            {deleteProduct && (
-                <DeleteConfirm
-                    product={deleteProduct}
-                    onClose={() => setDeleteProduct(undefined)}
-                    onConfirm={handleDelete}
                 />
             )}
             {categoryModalOpen && (
@@ -419,20 +445,34 @@ export default function ProductsPage() {
             )}
 
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <h1 className="text-xl font-bold" style={{ color: '#f1f5f9' }}>Товари</h1>
-                    <p className="text-sm mt-1" style={{ color: '#475569' }}>{products.length} позицій у каталозі</p>
+                    <p className="text-sm mt-1" style={{ color: '#475569' }}>
+                        {result ? `${result.totalCount} позицій у каталозі` : '…'}
+                    </p>
                 </div>
-                <div className="flex gap-2">
-                    {isAdmin && (
+                <div className="flex items-center gap-2">
+                    {/* CSV */}
+                    <button
+                        onClick={handleExport}
+                        disabled={products.length === 0}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all disabled:opacity-40"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8' }}
+                        onMouseEnter={e => { if (products.length > 0) e.currentTarget.style.color = '#f1f5f9'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; }}
+                        title="Експортувати в CSV"
+                    >
+                        <Download size={14} /> CSV
+                    </button>
+                    {canManage && (
                         <button onClick={() => setCategoryModalOpen(true)}
                                 className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium"
                                 style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', color: '#818cf8' }}>
                             <Tag size={15} /> Категорії
                         </button>
                     )}
-                    {isAdmin && (
+                    {canManage && (
                         <button onClick={() => { setEditProduct(undefined); setModalOpen(true); }}
                                 className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold"
                                 style={{ background: '#6366f1', color: '#fff' }}>
@@ -446,16 +486,21 @@ export default function ProductsPage() {
             <div className="flex gap-3">
                 <div className="relative flex-1">
                     <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#475569' }} />
-                    <input value={search} onChange={e => setSearch(e.target.value)}
-                           placeholder="Пошук за назвою, SKU або штрих-кодом..."
-                           className="w-full rounded-lg pl-9 pr-4 py-2.5 text-sm outline-none"
-                           style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.08)', color: '#f1f5f9' }}
-                           onFocus={e => (e.target.style.borderColor = 'rgba(99,102,241,0.4)')}
-                           onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.08)')} />
+                    <input
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        placeholder="Пошук за назвою, SKU або штрих-кодом..."
+                        className="w-full rounded-lg pl-9 pr-4 py-2.5 text-sm outline-none"
+                        style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.08)', color: '#f1f5f9' }}
+                        onFocus={e => (e.target.style.borderColor = 'rgba(99,102,241,0.4)')}
+                        onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.08)')}
+                    />
                 </div>
-                <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
-                        className="rounded-lg px-3 py-2.5 text-sm outline-none"
-                        style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.08)', color: filterCategory ? '#f1f5f9' : '#475569' }}>
+                <select
+                    value={filterCategory}
+                    onChange={e => setFilterCategory(e.target.value)}
+                    className="rounded-lg px-3 py-2.5 text-sm outline-none"
+                    style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.08)', color: filterCategory ? '#f1f5f9' : '#475569' }}>
                     <option value="">Всі категорії</option>
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
@@ -464,7 +509,12 @@ export default function ProductsPage() {
             {/* Table */}
             <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
                 <div className="grid text-xs font-medium px-4 py-3"
-                     style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 80px', background: '#13151f', borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#475569' }}>
+                     style={{
+                         gridTemplateColumns: '2fr 1fr 1fr 1fr 80px',
+                         background: '#13151f',
+                         borderBottom: '1px solid rgba(255,255,255,0.06)',
+                         color: '#475569',
+                     }}>
                     <span>Назва</span>
                     <span>SKU</span>
                     <span>Категорія</span>
@@ -476,7 +526,7 @@ export default function ProductsPage() {
                     <div className="flex items-center justify-center py-16" style={{ background: '#13151f' }}>
                         <Loader2 size={24} className="animate-spin" style={{ color: '#6366f1' }} />
                     </div>
-                ) : filtered.length === 0 ? (
+                ) : products.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-3" style={{ background: '#13151f' }}>
                         <Package size={32} style={{ color: '#1e293b' }} />
                         <p className="text-sm" style={{ color: '#334155' }}>
@@ -484,12 +534,12 @@ export default function ProductsPage() {
                         </p>
                     </div>
                 ) : (
-                    filtered.map((product, i) => (
+                    products.map((product, i) => (
                         <div key={product.id} className="grid items-center px-4 py-3"
                              style={{
                                  gridTemplateColumns: '2fr 1fr 1fr 1fr 80px',
                                  background: i % 2 === 0 ? '#13151f' : 'rgba(255,255,255,0.01)',
-                                 borderBottom: i < filtered.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                                 borderBottom: i < products.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
                              }}>
                             <div className="flex items-center gap-2.5 min-w-0">
                                 <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
@@ -497,35 +547,54 @@ export default function ProductsPage() {
                                     <Package size={14} style={{ color: '#6366f1' }} />
                                 </div>
                                 <div className="min-w-0">
-                                    <p className="text-sm font-medium truncate" style={{ color: '#f1f5f9' }}>{product.name}</p>
-                                    {product.isBatchTracked && (
-                                        <span className="text-xs" style={{ color: '#475569' }}>Партійний облік</span>
-                                    )}
+                                    <p className="text-sm font-medium truncate" style={{ color: '#f1f5f9' }}>
+                                        {product.name}
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                        {product.isBatchTracked && (
+                                            <span className="text-xs" style={{ color: '#475569' }}>Партійний облік</span>
+                                        )}
+                                        {product.minStock > 0 && (
+                                            <span className="text-xs" style={{ color: '#334155' }}>
+                                                мін: {product.minStock}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
+
                             <span className="text-xs font-mono" style={{ color: '#94a3b8' }}>{product.sku}</span>
+
                             <span>
-                {product.category ? (
-                    <span className="text-xs px-2 py-1 rounded-full"
-                          style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8' }}>
-                    {product.category.name}
-                  </span>
-                ) : <span className="text-xs" style={{ color: '#334155' }}>—</span>}
-              </span>
-                            <span className="text-xs font-mono" style={{ color: '#475569' }}>{product.barcode ?? '—'}</span>
+                                {product.category ? (
+                                    <span className="text-xs px-2 py-1 rounded-full"
+                                          style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8' }}>
+                                        {product.category.name}
+                                    </span>
+                                ) : (
+                                    <span className="text-xs" style={{ color: '#334155' }}>—</span>
+                                )}
+                            </span>
+
+                            <span className="text-xs font-mono" style={{ color: '#475569' }}>
+                                {product.barcode ?? '—'}
+                            </span>
+
                             <div className="flex items-center justify-end gap-1">
-                                {isAdmin && (
+                                {canManage && (
                                     <>
-                                        <button onClick={() => { setEditProduct(product); setModalOpen(true); }}
-                                                className="p-1.5 rounded-md" style={{ color: '#475569' }}
-                                                onMouseEnter={e => (e.currentTarget.style.color = '#818cf8')}
-                                                onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
+                                        <button
+                                            onClick={() => { setEditProduct(product); setModalOpen(true); }}
+                                            className="p-1.5 rounded-md" style={{ color: '#475569' }}
+                                            onMouseEnter={e => (e.currentTarget.style.color = '#818cf8')}
+                                            onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
                                             <Pencil size={14} />
                                         </button>
-                                        <button onClick={() => setDeleteProduct(product)}
-                                                className="p-1.5 rounded-md" style={{ color: '#475569' }}
-                                                onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
-                                                onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
+                                        <button
+                                            onClick={() => handleDeleteClick(product)}
+                                            className="p-1.5 rounded-md" style={{ color: '#475569' }}
+                                            onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
+                                            onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
                                             <Trash2 size={14} />
                                         </button>
                                     </>
@@ -533,6 +602,32 @@ export default function ProductsPage() {
                             </div>
                         </div>
                     ))
+                )}
+
+                {/* Пагінація */}
+                {!loading && result && result.totalCount > PAGE_SIZE && (
+                    <div className="flex items-center justify-between px-4 py-3"
+                         style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: '#13151f' }}>
+                        <span className="text-xs" style={{ color: '#334155' }}>
+                            Сторінка {result.page} з {result.totalPages} · Всього: {result.totalCount}
+                        </span>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => handlePageChange(page - 1)}
+                                disabled={!result.hasPreviousPage}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs disabled:opacity-30"
+                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8' }}>
+                                ← Назад
+                            </button>
+                            <button
+                                onClick={() => handlePageChange(page + 1)}
+                                disabled={!result.hasNextPage}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs disabled:opacity-30"
+                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8' }}>
+                                Вперед →
+                            </button>
+                        </div>
+                    </div>
                 )}
             </div>
         </div>
