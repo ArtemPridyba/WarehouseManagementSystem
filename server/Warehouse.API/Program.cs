@@ -82,6 +82,7 @@ builder.Services.AddScoped<IOutboundOrderService, OutboundOrderService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IWorkOrderService, WorkOrderService>();
+builder.Services.AddScoped<ITenantService, TenantService>();
 builder.Services.AddScoped<IDbInitializer, DbInitializer>();
 
 var app = builder.Build();

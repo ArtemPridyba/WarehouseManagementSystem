@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Warehouse.API.Application.DTOs.Common;
 using Warehouse.API.Application.DTOs.WorkOrders;
 using Warehouse.API.Application.Interfaces;
 using Warehouse.API.Domain.Entities;
@@ -7,16 +8,10 @@ using Warehouse.API.Infrastructure.Data;
 
 namespace Warehouse.API.Application.Services;
 
-public class WorkOrderService : IWorkOrderService
+public class WorkOrderService(ApplicationDbContext context, ICurrentUserContext currentUser) : IWorkOrderService
 {
-    private readonly ApplicationDbContext _context;
-    private readonly ICurrentUserContext _currentUser;
-
-    public WorkOrderService(ApplicationDbContext context, ICurrentUserContext currentUser)
-    {
-        _context = context;
-        _currentUser = currentUser;
-    }
+    private readonly ApplicationDbContext _context = context;
+    private readonly ICurrentUserContext _currentUser = currentUser;
 
     private IQueryable<WorkOrder> BaseQuery() =>
         _context.WorkOrders
@@ -31,68 +26,123 @@ public class WorkOrderService : IWorkOrderService
 
     private static WorkOrderDto ToDto(WorkOrder w) => new()
     {
-        Id = w.Id,
-        Type = w.Type,
-        Status = w.Status,
-        Priority = w.Priority,
-        Title = w.Title,
-        Description = w.Description,
-        AssignedToId = w.AssignedToId,
-        AssignedToName = w.AssignedTo != null ? $"{w.AssignedTo.FirstName} {w.AssignedTo.LastName}" : null,
-        CreatedById = w.CreatedById,
-        CreatedByName = w.CreatedBy != null ? $"{w.CreatedBy.FirstName} {w.CreatedBy.LastName}" : null,
-        InboundOrderId = w.InboundOrderId,
-        InboundOrderNumber = w.InboundOrder?.OrderNumber,
-        OutboundOrderId = w.OutboundOrderId,
+        Id                  = w.Id,
+        Type                = w.Type,
+        Status              = w.Status,
+        Priority            = w.Priority,
+        Title               = w.Title,
+        Description         = w.Description,
+        AssignedToId        = w.AssignedToId,
+        AssignedToName      = w.AssignedTo != null ? $"{w.AssignedTo.FirstName} {w.AssignedTo.LastName}" : null,
+        CreatedById         = w.CreatedById,
+        CreatedByName       = w.CreatedBy != null ? $"{w.CreatedBy.FirstName} {w.CreatedBy.LastName}" : null,
+        InboundOrderId      = w.InboundOrderId,
+        InboundOrderNumber  = w.InboundOrder?.OrderNumber,
+        OutboundOrderId     = w.OutboundOrderId,
         OutboundOrderNumber = w.OutboundOrder?.OrderNumber,
-        ProductId = w.ProductId,
-        ProductName = w.Product?.Name,
-        FromLocationId = w.FromLocationId,
-        FromLocationCode = w.FromLocation?.Code,
-        ToLocationId = w.ToLocationId,
-        ToLocationCode = w.ToLocation?.Code,
-        Quantity = w.Quantity,
-        DueDate = w.DueDate,
-        CompletedAt = w.CompletedAt,
-        CompletionNote = w.CompletionNote,
-        CreatedAt = w.CreatedAt,
+        ProductId           = w.ProductId,
+        ProductName         = w.Product?.Name,
+        FromLocationId      = w.FromLocationId,
+        FromLocationCode    = w.FromLocation?.Code,
+        ToLocationId        = w.ToLocationId,
+        ToLocationCode      = w.ToLocation?.Code,
+        Quantity            = w.Quantity,
+        DueDate             = w.DueDate,
+        CompletedAt         = w.CompletedAt,
+        CompletionNote      = w.CompletionNote,
+        CreatedAt           = w.CreatedAt,
     };
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private async Task<bool> IsAdminAsync()
+    {
+        var userId = _currentUser.UserId;
+        if (userId == null) return false;
+        return await _context.UserRoles
+            .Join(_context.Roles,
+                ur => ur.RoleId,
+                r  => r.Id,
+                (ur, r) => new { ur.UserId, r.Name })
+            .AnyAsync(x => x.UserId == userId && x.Name == "Admin");
+    }
+
+    private async Task<bool> IsManagerOrAdminAsync()
+    {
+        var userId = _currentUser.UserId;
+        if (userId == null) return false;
+        return await _context.UserRoles
+            .Join(_context.Roles,
+                ur => ur.RoleId,
+                r  => r.Id,
+                (ur, r) => new { ur.UserId, r.Name })
+            .AnyAsync(x => x.UserId == userId &&
+                           (x.Name == "Admin" || x.Name == "Manager"));
+    }
+
+    // ── Public methods ────────────────────────────────────────────────────────
 
     public async Task<IEnumerable<WorkOrderDto>> GetAllAsync(WorkOrderStatus? status = null)
     {
         var query = BaseQuery();
-        
+
         if (!await IsAdminAsync())
         {
             var userId = _currentUser.UserId;
             query = query.Where(w => w.AssignedToId == userId);
         }
-        
+
         if (status.HasValue)
             query = query.Where(w => w.Status == status.Value);
+
         return (await query.OrderByDescending(w => w.CreatedAt).ToListAsync()).Select(ToDto);
     }
-    
-    private async Task<bool> IsAdminAsync()
+
+    public async Task<PagedResult<WorkOrderDto>> GetPagedAsync(GetWorkOrdersQuery query)
     {
-        var userId = _currentUser.UserId;
-        if (userId == null) return false;
-        var user = await _context.Users.FindAsync(userId);
-        return await _context.UserRoles
-            .Join(_context.Roles,
-                ur => ur.RoleId,
-                r => r.Id,
-                (ur, r) => new { ur.UserId, r.Name })
-            .AnyAsync(x => x.UserId == userId && x.Name == "Admin");
+        var q = BaseQuery();
+
+        if (query.FreeOnly)
+        {
+            // Вільні завдання — без виконавця, тільки Pending
+            q = q.Where(w => w.AssignedToId == null && w.Status == WorkOrderStatus.Pending);
+        }
+        else if (query.MyOnly || !await IsManagerOrAdminAsync())
+        {
+            // Мої завдання або Worker — бачить тільки свої
+            var userId = _currentUser.UserId;
+            q = q.Where(w => w.AssignedToId == userId);
+        }
+
+        if (query.Status.HasValue)
+            q = q.Where(w => w.Status == query.Status.Value);
+
+        q = q.OrderByDescending(w => w.CreatedAt);
+
+        var totalCount = await q.CountAsync();
+        var items = await q
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .ToListAsync();
+
+        return new PagedResult<WorkOrderDto>
+        {
+            Items      = items.Select(ToDto).ToList(),
+            Page       = query.Page,
+            PageSize   = query.PageSize,
+            TotalCount = totalCount,
+        };
     }
 
     public async Task<IEnumerable<WorkOrderDto>> GetMyTasksAsync()
     {
         var userId = _currentUser.UserId;
         return (await BaseQuery()
-            .Where(w => w.AssignedToId == userId && w.Status != WorkOrderStatus.Completed && w.Status != WorkOrderStatus.Cancelled)
+            .Where(w => w.AssignedToId == userId
+                     && w.Status != WorkOrderStatus.Completed
+                     && w.Status != WorkOrderStatus.Cancelled)
             .OrderBy(w => w.Priority)
-            .OrderBy(w => w.DueDate)
+            .ThenBy(w => w.DueDate)
             .ToListAsync()).Select(ToDto);
     }
 
@@ -106,19 +156,19 @@ public class WorkOrderService : IWorkOrderService
     {
         var workOrder = new WorkOrder
         {
-            Type = request.Type,
-            Title = request.Title,
-            Description = request.Description,
-            Priority = request.Priority,
-            AssignedToId = request.AssignedToId,
-            CreatedById = _currentUser.UserId!.Value,
-            InboundOrderId = request.InboundOrderId,
+            Type            = request.Type,
+            Title           = request.Title,
+            Description     = request.Description,
+            Priority        = request.Priority,
+            AssignedToId    = request.AssignedToId,
+            CreatedById     = _currentUser.UserId!.Value,
+            InboundOrderId  = request.InboundOrderId,
             OutboundOrderId = request.OutboundOrderId,
-            ProductId = request.ProductId,
-            FromLocationId = request.FromLocationId,
-            ToLocationId = request.ToLocationId,
-            Quantity = request.Quantity,
-            DueDate = request.DueDate.HasValue
+            ProductId       = request.ProductId,
+            FromLocationId  = request.FromLocationId,
+            ToLocationId    = request.ToLocationId,
+            Quantity        = request.Quantity,
+            DueDate         = request.DueDate.HasValue
                 ? DateTime.SpecifyKind(request.DueDate.Value, DateTimeKind.Utc)
                 : null,
             CreatedAt = DateTime.UtcNow,
@@ -135,7 +185,7 @@ public class WorkOrderService : IWorkOrderService
         var workOrder = await _context.WorkOrders.FindAsync(id)
             ?? throw new Exception("Завдання не знайдено");
 
-        workOrder.Status = request.Status;
+        workOrder.Status         = request.Status;
         workOrder.CompletionNote = request.CompletionNote;
 
         if (request.Status == WorkOrderStatus.Completed)
@@ -155,6 +205,23 @@ public class WorkOrderService : IWorkOrderService
         return ToDto(await BaseQuery().FirstAsync(w => w.Id == id));
     }
 
+    // Взяти вільне завдання собі
+    public async Task<WorkOrderDto> TakeAsync(Guid id)
+    {
+        var workOrder = await _context.WorkOrders.FindAsync(id)
+            ?? throw new Exception("Завдання не знайдено");
+
+        if (workOrder.AssignedToId != null)
+            throw new Exception("Завдання вже має виконавця");
+
+        if (workOrder.Status != WorkOrderStatus.Pending)
+            throw new Exception("Можна взяти тільки завдання зі статусом 'Очікує'");
+
+        workOrder.AssignedToId = _currentUser.UserId;
+        await _context.SaveChangesAsync();
+        return ToDto(await BaseQuery().FirstAsync(w => w.Id == id));
+    }
+
     public async Task<bool> DeleteAsync(Guid id)
     {
         var workOrder = await _context.WorkOrders.FindAsync(id);
@@ -166,7 +233,7 @@ public class WorkOrderService : IWorkOrderService
         await _context.SaveChangesAsync();
         return true;
     }
-    
+
     public async Task<NotificationsDto> GetNotificationsAsync()
     {
         var userId = _currentUser.UserId;

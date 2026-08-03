@@ -10,4 +10,9 @@ public interface IAuthService
     Task<IEnumerable<EmployeeDto>> GetEmployeesAsync(Guid tenantId);
     Task<AuthResponse> UpdateProfileAsync(Guid userId, UpdateProfileRequest request);
     Task ChangePasswordAsync(Guid userId, ChangePasswordRequest request);
+
+    // ── Employee CRUD ──────────────────────────────────────────────────────────
+    Task<EmployeeDto> UpdateEmployeeAsync(Guid tenantId, Guid employeeId, UpdateEmployeeRequest request);
+    Task DeleteEmployeeAsync(Guid tenantId, Guid employeeId);
+    Task ResetEmployeePasswordAsync(Guid tenantId, Guid employeeId, ResetEmployeePasswordRequest request);
 }

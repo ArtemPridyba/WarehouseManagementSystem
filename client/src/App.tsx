@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ProductDrawerProvider } from './context/ProductDrawerContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './layouts/MainLayout';
 import LoginPage from './pages/auth/LoginPage';
@@ -13,39 +14,43 @@ import RegisterPage from './pages/auth/RegisterPage';
 import InventoryPage from './pages/InventoryPage';
 import WorkOrdersPage from './pages/WorkOrdersPage';
 import TransactionHistoryPage from './pages/TransactionHistoryPage';
-import ProfilePage from "./pages/ProfilePage.tsx";
+import ProfilePage from './pages/ProfilePage.tsx';
+import TenantPage from "./pages/TenantPage.tsx";
 
 export default function App() {
     return (
         <AuthProvider>
             <BrowserRouter>
-                <Routes>
-                    <Route path="/login" element={<LoginPage />} />
-                    <Route path="/register" element={<RegisterPage />} />
+                <ProductDrawerProvider>
+                    <Routes>
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route path="/register" element={<RegisterPage />} />
 
-                    <Route element={<ProtectedRoute />}>
-                        <Route element={<MainLayout />}>
-                            <Route path="/dashboard" element={<DashboardPage />} />
-                            <Route path="/tasks" element={<WorkOrdersPage />} />
-                            <Route path="/inventory" element={<InventoryPage />} />
-                            <Route path="/warehouse" element={<WarehousePage />} />
-                            <Route path="/products"  element={<ProductsPage />} />
-                            <Route path="/inbound"   element={<InboundPage />} />
-                            <Route path="/outbound"  element={<OutboundPage />} />
-                            <Route path="/transactions" element={<TransactionHistoryPage />} />
-                            <Route path="/profile" element={<ProfilePage />} />
+                        <Route element={<ProtectedRoute />}>
+                            <Route element={<MainLayout />}>
+                                <Route path="/dashboard"    element={<DashboardPage />} />
+                                <Route path="/tasks"        element={<WorkOrdersPage />} />
+                                <Route path="/inventory"    element={<InventoryPage />} />
+                                <Route path="/warehouse"    element={<WarehousePage />} />
+                                <Route path="/products"     element={<ProductsPage />} />
+                                <Route path="/inbound"      element={<InboundPage />} />
+                                <Route path="/outbound"     element={<OutboundPage />} />
+                                <Route path="/transactions" element={<TransactionHistoryPage />} />
+                                <Route path="/profile"      element={<ProfilePage />} />
+                                <Route path="/tenant" element={<TenantPage />} />
+                            </Route>
                         </Route>
-                    </Route>
 
-                    <Route element={<ProtectedRoute requiredRole="Admin" />}>
-                        <Route element={<MainLayout />}>
-                            <Route path="/users" element={<UsersPage />} />
+                        <Route element={<ProtectedRoute requiredRole="Admin" />}>
+                            <Route element={<MainLayout />}>
+                                <Route path="/users" element={<UsersPage />} />
+                            </Route>
                         </Route>
-                    </Route>
 
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                    <Route path="*" element={<Navigate to="/login" replace />} />
-                </Routes>
+                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                        <Route path="*" element={<Navigate to="/login" replace />} />
+                    </Routes>
+                </ProductDrawerProvider>
             </BrowserRouter>
         </AuthProvider>
     );
