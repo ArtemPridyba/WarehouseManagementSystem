@@ -1,51 +1,51 @@
-import type {PagedQuery} from "./common.types.ts";
+import type { PagedQuery } from './common.types.ts';
 
 export type WorkOrderType = 'Receive' | 'Ship' | 'Transfer' | 'Adjust' | 'Count';
 export type WorkOrderStatus = 'Pending' | 'InProgress' | 'Completed' | 'Cancelled';
 export type WorkOrderPriority = 'Low' | 'Normal' | 'High' | 'Urgent';
 
 export const WORK_ORDER_TYPE_LABELS: Record<WorkOrderType, string> = {
-    Receive: 'Приймання',
-    Ship: 'Відвантаження',
+    Receive:  'Приймання',
+    Ship:     'Відвантаження',
     Transfer: 'Переміщення',
-    Adjust: 'Коригування',
-    Count: 'Перерахунок',
+    Adjust:   'Коригування',
+    Count:    'Перерахунок',
 };
 
 export const WORK_ORDER_STATUS_LABELS: Record<WorkOrderStatus, string> = {
-    Pending: 'Очікує',
+    Pending:    'Очікує',
     InProgress: 'Виконується',
-    Completed: 'Виконано',
-    Cancelled: 'Скасовано',
+    Completed:  'Виконано',
+    Cancelled:  'Скасовано',
 };
 
 export const WORK_ORDER_STATUS_COLORS: Record<WorkOrderStatus, string> = {
-    Pending: '#f59e0b',
+    Pending:    '#f59e0b',
     InProgress: '#6366f1',
-    Completed: '#2dd4bf',
-    Cancelled: '#475569',
+    Completed:  '#2dd4bf',
+    Cancelled:  '#475569',
 };
 
 export const WORK_ORDER_PRIORITY_LABELS: Record<WorkOrderPriority, string> = {
-    Low: 'Низький',
+    Low:    'Низький',
     Normal: 'Звичайний',
-    High: 'Високий',
+    High:   'Високий',
     Urgent: 'Терміново',
 };
 
 export const WORK_ORDER_PRIORITY_COLORS: Record<WorkOrderPriority, string> = {
-    Low: '#475569',
+    Low:    '#475569',
     Normal: '#6366f1',
-    High: '#f59e0b',
+    High:   '#f59e0b',
     Urgent: '#f87171',
 };
 
 export const WORK_ORDER_TYPE_ICONS: Record<WorkOrderType, string> = {
-    Receive: '📦',
-    Ship: '🚚',
+    Receive:  '📦',
+    Ship:     '🚚',
     Transfer: '↔️',
-    Adjust: '⚖️',
-    Count: '🔢',
+    Adjust:   '⚖️',
+    Count:    '🔢',
 };
 
 export interface WorkOrderDto {
@@ -115,6 +115,7 @@ export interface NotificationsDto {
 }
 
 export interface GetWorkOrdersQuery extends PagedQuery {
-    status?: WorkOrderStatus;
-    myOnly?: boolean;
+    status?:   WorkOrderStatus;
+    myOnly?:   boolean;
+    freeOnly?: boolean;
 }

@@ -28,6 +28,12 @@ export interface CreateEmployeeRequest {
     role: 'Manager' | 'Worker';
 }
 
+export interface UpdateEmployeeRequest {
+    firstName: string;
+    lastName: string;
+    role: 'Manager' | 'Worker';
+}
+
 export interface CurrentUser {
     id: string;
     email: string;

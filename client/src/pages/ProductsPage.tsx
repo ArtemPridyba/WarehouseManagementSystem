@@ -1,7 +1,8 @@
-﻿import { useEffect, useState, useCallback } from 'react';
+﻿import {useEffect, useState, useCallback, useRef} from 'react';
 import {
     Plus, Pencil, Trash2, Loader2, X,
-    Search, Package, CheckCircle, Circle, Tag, Download,
+    Search, Package, CheckCircle, Circle, Tag, Download, ChevronDown,
+    ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { productService } from '../services/product.service';
 import { categoryService } from '../services/category.service';
@@ -11,8 +12,9 @@ import { exportToCsv } from '../utils/exportCsv';
 import { useConfirm } from '../hooks/useConfirm';
 import ConfirmModal from '../components/ConfirmModal';
 import type { Product, UpsertProductRequest, ProductCategory, PagedResult } from '../types';
+import {useProductDrawer} from "../context/ProductDrawerContext.tsx";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 7;
 
 // ─── Category Modal ───────────────────────────────────────────────────────────
 
@@ -330,6 +332,7 @@ function ProductModal({ product, categories, onClose, onSave }: {
 
 export default function ProductsPage() {
     const { canManage }   = useRole();
+    const { openProductDrawer } = useProductDrawer();
     const { confirm, options, handleConfirm, handleClose } = useConfirm();
 
     const [categories, setCategories]     = useState<ProductCategory[]>([]);
@@ -341,6 +344,19 @@ export default function ProductsPage() {
     const [modalOpen, setModalOpen]       = useState(false);
     const [categoryModalOpen, setCategoryModalOpen] = useState(false);
     const [editProduct, setEditProduct]   = useState<Product | undefined>();
+
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e: any) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     // Завантаження категорій
     useEffect(() => {
@@ -425,7 +441,7 @@ export default function ProductsPage() {
     const products = result?.items ?? [];
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in fade-in duration-300">
             {options && (
                 <ConfirmModal {...options} onConfirm={handleConfirm} onClose={handleClose} />
             )}
@@ -447,35 +463,31 @@ export default function ProductsPage() {
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
-                    <h1 className="text-xl font-bold" style={{ color: '#f1f5f9' }}>Товари</h1>
-                    <p className="text-sm mt-1" style={{ color: '#475569' }}>
-                        {result ? `${result.totalCount} позицій у каталозі` : '…'}
+                    <h1 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                        <Package size={22} className="text-indigo-400" />
+                        Товари
+                    </h1>
+                    <p className="text-sm text-slate-500 mt-0.5">
+                        {result ? `${result.totalCount} позицій у каталозі` : 'Завантаження...'}
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {/* CSV */}
                     <button
                         onClick={handleExport}
                         disabled={products.length === 0}
-                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all disabled:opacity-40"
-                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8' }}
-                        onMouseEnter={e => { if (products.length > 0) e.currentTarget.style.color = '#f1f5f9'; }}
-                        onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; }}
-                        title="Експортувати в CSV"
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-white/[0.02] border border-white/[0.08] text-slate-400 transition-all hover:bg-white/[0.06] hover:text-slate-100 disabled:opacity-40"
                     >
-                        <Download size={14} /> CSV
+                        <Download size={15} /> Експорт CSV
                     </button>
                     {canManage && (
                         <button onClick={() => setCategoryModalOpen(true)}
-                                className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium"
-                                style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', color: '#818cf8' }}>
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 transition-all">
                             <Tag size={15} /> Категорії
                         </button>
                     )}
                     {canManage && (
                         <button onClick={() => { setEditProduct(undefined); setModalOpen(true); }}
-                                className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold"
-                                style={{ background: '#6366f1', color: '#fff' }}>
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-500 hover:bg-indigo-600 text-white transition-all shadow-lg shadow-indigo-500/20">
                             <Plus size={16} /> Додати товар
                         </button>
                     )}
@@ -483,38 +495,59 @@ export default function ProductsPage() {
             </div>
 
             {/* Filters */}
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1">
-                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#475569' }} />
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                     <input
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         placeholder="Пошук за назвою, SKU або штрих-кодом..."
-                        className="w-full rounded-lg pl-9 pr-4 py-2.5 text-sm outline-none"
-                        style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.08)', color: '#f1f5f9' }}
-                        onFocus={e => (e.target.style.borderColor = 'rgba(99,102,241,0.4)')}
-                        onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.08)')}
+                        className="w-full rounded-lg pl-9 pr-4 py-2.5 text-sm bg-[#0B0D14]/80 backdrop-blur-md border border-white/[0.08] text-slate-100 placeholder-slate-500 focus:border-indigo-500/50 outline-none transition-all"
                     />
                 </div>
-                <select
-                    value={filterCategory}
-                    onChange={e => setFilterCategory(e.target.value)}
-                    className="rounded-lg px-3 py-2.5 text-sm outline-none"
-                    style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.08)', color: filterCategory ? '#f1f5f9' : '#475569' }}>
-                    <option value="">Всі категорії</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+
+                {/* Кастомний Селектор Категорій */}
+                <div className="relative w-full sm:w-64" ref={dropdownRef}>
+                    <button
+                        type="button"
+                        onClick={() => setDropdownOpen(!dropdownOpen)}
+                        className="w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-sm bg-[#0B0D14]/80 backdrop-blur-md border border-white/[0.08] text-left outline-none transition-all focus:border-indigo-500/50"
+                    >
+                    <span className={filterCategory ? 'text-slate-200 font-medium' : 'text-slate-500'}>
+                        {filterCategory ? categories.find(c => c.id === filterCategory)?.name : '— Всі категорії —'}
+                    </span>
+                        <ChevronDown size={16} className={`text-slate-500 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {dropdownOpen && (
+                        <div className="absolute left-0 right-0 mt-1.5 z-40 rounded-xl border border-white/[0.08] bg-[#11131C] shadow-2xl p-1 animate-in fade-in slide-in-from-top-2 duration-150 max-h-60 overflow-y-auto">
+                            <button
+                                onClick={() => { setFilterCategory(''); setDropdownOpen(false); }}
+                                className="w-full text-left px-3 py-2 rounded-lg text-xs text-slate-500 hover:bg-white/[0.03] transition-colors"
+                            >
+                                — Всі категорії —
+                            </button>
+                            {categories.map(c => (
+                                <button
+                                    key={c.id}
+                                    onClick={() => { setFilterCategory(c.id); setDropdownOpen(false); }}
+                                    className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all flex items-center justify-between ${
+                                        filterCategory === c.id
+                                            ? 'bg-indigo-600/20 text-indigo-400 font-medium border-l-2 border-indigo-500'
+                                            : 'text-slate-300 hover:bg-white/[0.04] hover:text-slate-100'
+                                    }`}
+                                >
+                                    {c.name}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Table */}
-            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
-                <div className="grid text-xs font-medium px-4 py-3"
-                     style={{
-                         gridTemplateColumns: '2fr 1fr 1fr 1fr 80px',
-                         background: '#13151f',
-                         borderBottom: '1px solid rgba(255,255,255,0.06)',
-                         color: '#475569',
-                     }}>
+            {/* Table Area */}
+            <div className="rounded-xl overflow-hidden border border-white/[0.04] bg-[#0B0D14]/40 backdrop-blur-md shadow-lg">
+                <div className="grid grid-cols-[2fr_1fr_1fr_1fr_80px] items-center text-xs font-semibold px-4 py-3 bg-[#0B0D14]/80 border-b border-white/[0.04] text-slate-400 tracking-wider">
                     <span>Назва</span>
                     <span>SKU</span>
                     <span>Категорія</span>
@@ -523,108 +556,81 @@ export default function ProductsPage() {
                 </div>
 
                 {loading ? (
-                    <div className="flex items-center justify-center py-16" style={{ background: '#13151f' }}>
-                        <Loader2 size={24} className="animate-spin" style={{ color: '#6366f1' }} />
+                    <div className="flex flex-col items-center justify-center py-24 gap-3">
+                        <Loader2 size={32} className="animate-spin text-indigo-500" />
                     </div>
                 ) : products.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 gap-3" style={{ background: '#13151f' }}>
-                        <Package size={32} style={{ color: '#1e293b' }} />
-                        <p className="text-sm" style={{ color: '#334155' }}>
+                    <div className="flex flex-col items-center justify-center py-24 gap-3">
+                        <Package size={48} className="text-slate-800" />
+                        <p className="text-sm font-medium text-slate-500">
                             {search || filterCategory ? 'Нічого не знайдено' : 'Товарів ще немає'}
                         </p>
                     </div>
                 ) : (
-                    products.map((product, i) => (
-                        <div key={product.id} className="grid items-center px-4 py-3"
-                             style={{
-                                 gridTemplateColumns: '2fr 1fr 1fr 1fr 80px',
-                                 background: i % 2 === 0 ? '#13151f' : 'rgba(255,255,255,0.01)',
-                                 borderBottom: i < products.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                             }}>
-                            <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
-                                     style={{ background: 'rgba(99,102,241,0.1)' }}>
-                                    <Package size={14} style={{ color: '#6366f1' }} />
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="text-sm font-medium truncate" style={{ color: '#f1f5f9' }}>
-                                        {product.name}
-                                    </p>
-                                    <div className="flex items-center gap-2">
-                                        {product.isBatchTracked && (
-                                            <span className="text-xs" style={{ color: '#475569' }}>Партійний облік</span>
-                                        )}
-                                        {product.minStock > 0 && (
-                                            <span className="text-xs" style={{ color: '#334155' }}>
-                                                мін: {product.minStock}
-                                            </span>
-                                        )}
+                    <div className="divide-y divide-white/[0.02]">
+                        {products.map((product) => (
+                            <div key={product.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_80px] items-center px-4 py-3 hover:bg-white/[0.02] transition-colors">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 shrink-0">
+                                        <Package size={14} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <button onClick={() => openProductDrawer(product.id, product.name, product.sku)}
+                                                className="text-sm font-medium text-slate-200 hover:text-indigo-400 transition-colors truncate w-full text-left">
+                                            {product.name}
+                                        </button>
+                                        <div className="flex gap-2 mt-0.5">
+                                            {product.isBatchTracked && <span className="text-[10px] text-slate-500">Партійний облік</span>}
+                                            {product.minStock > 0 && <span className="text-[10px] text-slate-600">мін: {product.minStock}</span>}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-
-                            <span className="text-xs font-mono" style={{ color: '#94a3b8' }}>{product.sku}</span>
-
-                            <span>
-                                {product.category ? (
-                                    <span className="text-xs px-2 py-1 rounded-full"
-                                          style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8' }}>
+                                <span className="text-xs font-mono text-slate-400">{product.sku}</span>
+                                <div>
+                                    {product.category ? (
+                                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/[0.03] text-slate-400 border border-white/[0.05]">
                                         {product.category.name}
                                     </span>
-                                ) : (
-                                    <span className="text-xs" style={{ color: '#334155' }}>—</span>
-                                )}
-                            </span>
-
-                            <span className="text-xs font-mono" style={{ color: '#475569' }}>
-                                {product.barcode ?? '—'}
-                            </span>
-
-                            <div className="flex items-center justify-end gap-1">
-                                {canManage && (
-                                    <>
-                                        <button
-                                            onClick={() => { setEditProduct(product); setModalOpen(true); }}
-                                            className="p-1.5 rounded-md" style={{ color: '#475569' }}
-                                            onMouseEnter={e => (e.currentTarget.style.color = '#818cf8')}
-                                            onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
-                                            <Pencil size={14} />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteClick(product)}
-                                            className="p-1.5 rounded-md" style={{ color: '#475569' }}
-                                            onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
-                                            onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </>
-                                )}
+                                    ) : <span className="text-xs text-slate-600">—</span>}
+                                </div>
+                                <span className="text-xs font-mono text-slate-500">{product.barcode ?? '—'}</span>
+                                <div className="flex items-center justify-end gap-1">
+                                    {canManage && (
+                                        <>
+                                            <button onClick={() => { setEditProduct(product); setModalOpen(true); }}
+                                                    className="p-1.5 text-slate-500 hover:text-indigo-400 transition-colors">
+                                                <Pencil size={15} />
+                                            </button>
+                                            <button onClick={() => handleDeleteClick(product)}
+                                                    className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors">
+                                                <Trash2 size={15} />
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    ))
+                        ))}
+                    </div>
                 )}
 
-                {/* Пагінація */}
-                {!loading && result && result.totalCount > PAGE_SIZE && (
-                    <div className="flex items-center justify-between px-4 py-3"
-                         style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: '#13151f' }}>
-                        <span className="text-xs" style={{ color: '#334155' }}>
+                {/* Pagination */}
+                {!loading && result && result.totalCount > 0 && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.04] bg-[#0B0D14]/20">
+                        <span className="text-xs text-slate-500 font-medium">
                             Сторінка {result.page} з {result.totalPages} · Всього: {result.totalCount}
                         </span>
                         <div className="flex gap-2">
                             <button
                                 onClick={() => handlePageChange(page - 1)}
                                 disabled={!result.hasPreviousPage}
-                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs disabled:opacity-30"
-                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8' }}>
-                                ← Назад
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.02] border border-white/[0.08] text-slate-400 hover:bg-white/[0.06] disabled:opacity-30">
+                                <ChevronLeft size={13} /> Назад
                             </button>
                             <button
                                 onClick={() => handlePageChange(page + 1)}
                                 disabled={!result.hasNextPage}
-                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs disabled:opacity-30"
-                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8' }}>
-                                Вперед →
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.02] border border-white/[0.08] text-slate-400 hover:bg-white/[0.06] disabled:opacity-30">
+                                Вперед <ChevronRight size={13} />
                             </button>
                         </div>
                     </div>

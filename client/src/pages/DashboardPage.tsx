@@ -15,15 +15,23 @@ import type {
     HourlyActivityDto,
 } from '../types';
 
-// ─── Кольори ──────────────────────────────────────────────────────────────────
+// ─── Кольори для графіків ──────────────────────────────────────────────────────
 
 const ABC_COLORS: Record<string, string> = {
-    A: '#6366f1',
-    B: '#2dd4bf',
-    C: '#f59e0b',
+    A: '#6366f1', // indigo-500
+    B: '#2dd4bf', // teal-400
+    C: '#f59e0b', // amber-500
 };
 
 const PIE_COLORS = ['#6366f1', '#2dd4bf', '#f59e0b', '#f87171', '#a78bfa'];
+
+const COLOR_MAP: Record<string, { text: string; bg: string; border: string; glow: string }> = {
+    indigo: { text: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20', glow: 'shadow-indigo-500/5' },
+    teal:   { text: 'text-teal-400',   bg: 'bg-teal-500/10',   border: 'border-teal-500/20',   glow: 'shadow-teal-500/5' },
+    amber:  { text: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  glow: 'shadow-amber-500/5' },
+    purple: { text: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', glow: 'shadow-purple-500/5' },
+    rose:   { text: 'text-rose-400',   bg: 'bg-rose-500/10',   border: 'border-rose-500/20',   glow: 'shadow-rose-500/5' },
+};
 
 // ─── Stat Card ────────────────────────────────────────────────────────────────
 
@@ -31,24 +39,20 @@ interface StatCardProps {
     label: string;
     value: number | string;
     icon: React.ReactNode;
-    accent?: string;
+    variant?: 'indigo' | 'teal' | 'amber' | 'purple' | 'rose';
 }
 
-function StatCard({ label, value, icon, accent = '#6366f1' }: StatCardProps) {
+function StatCard({ label, value, icon, variant = 'indigo' }: StatCardProps) {
+    const config = COLOR_MAP[variant];
+
     return (
-        <div
-            className="rounded-xl p-5 flex items-center gap-4"
-            style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.06)' }}
-        >
-            <div
-                className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0"
-                style={{ background: `${accent}20`, border: `1px solid ${accent}30` }}
-            >
-                <span style={{ color: accent }}>{icon}</span>
+        <div className="rounded-xl p-5 flex items-center gap-4 bg-[#0B0D14]/40 backdrop-blur-md border border-white/[0.04] shadow-lg transition-all duration-300 hover:border-white/10 hover:-translate-y-0.5">
+            <div className={`w-11 h-11 rounded-lg flex items-center justify-center shrink-0 border shadow-sm ${config.bg} ${config.border} ${config.text} ${config.glow}`}>
+                {icon}
             </div>
-            <div>
-                <p className="text-xs mb-1" style={{ color: '#475569' }}>{label}</p>
-                <p className="text-2xl font-bold" style={{ color: '#f1f5f9' }}>{value}</p>
+            <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-slate-500 truncate mb-1">{label}</p>
+                <p className="text-2xl font-bold text-slate-100 tracking-tight truncate">{value}</p>
             </div>
         </div>
     );
@@ -58,11 +62,8 @@ function StatCard({ label, value, icon, accent = '#6366f1' }: StatCardProps) {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
     return (
-        <div
-            className="rounded-xl p-5"
-            style={{ background: '#13151f', border: '1px solid rgba(255,255,255,0.06)' }}
-        >
-            <h3 className="text-sm font-semibold mb-4" style={{ color: '#94a3b8' }}>
+        <div className="rounded-xl p-5 bg-[#0B0D14]/40 backdrop-blur-md border border-white/[0.04] shadow-xl">
+            <h3 className="text-xs font-semibold tracking-wider text-slate-400 mb-5">
                 {title}
             </h3>
             {children}
@@ -75,16 +76,17 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function ChartTooltip({ active, payload, label }: any) {
     if (!active || !payload?.length) return null;
     return (
-        <div
-            className="rounded-lg px-3 py-2 text-xs"
-            style={{ background: '#1e2130', border: '1px solid rgba(255,255,255,0.1)', color: '#f1f5f9' }}
-        >
-            {label !== undefined && <p className="mb-1" style={{ color: '#475569' }}>{label}</p>}
-            {payload.map((p: any) => (
-                <p key={p.name} style={{ color: p.color }}>
-                    {p.name}: <span className="font-semibold">{p.value}</span>
-                </p>
-            ))}
+        <div className="rounded-lg px-3 py-2 text-xs bg-[#0F111A]/90 backdrop-blur-md border border-white/10 shadow-xl">
+            {label !== undefined && <p className="text-slate-500 mb-1.5 font-medium">{label}</p>}
+            <div className="space-y-1">
+                {payload.map((p: any) => (
+                    <p key={p.name} style={{ color: p.color }} className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.color }} />
+                        <span>{p.name}:</span>
+                        <span className="font-semibold text-slate-200">{p.value}</span>
+                    </p>
+                ))}
+            </div>
         </div>
     );
 }
@@ -123,16 +125,17 @@ export default function DashboardPage() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <Loader2 size={32} className="animate-spin" style={{ color: '#6366f1' }} />
+            <div className="flex flex-col items-center justify-center h-96 gap-3">
+                <Loader2 size={36} className="animate-spin text-indigo-500" />
+                <p className="text-sm text-slate-500 animate-pulse">Завантаження аналітики...</p>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <p style={{ color: '#f87171' }}>{error}</p>
+            <div className="flex items-center justify-center h-64 border border-rose-500/10 bg-rose-500/5 rounded-xl p-6">
+                <p className="text-sm font-medium text-rose-400">{error}</p>
             </div>
         );
     }
@@ -146,47 +149,47 @@ export default function DashboardPage() {
     }));
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in fade-in duration-500">
 
             {/* Заголовок */}
             <div>
-                <h1 className="text-xl font-bold" style={{ color: '#f1f5f9' }}>Дашборд</h1>
-                <p className="text-sm mt-1" style={{ color: '#475569' }}>
-                    Загальна статистика складу
+                <h1 className="text-xl font-bold tracking-tight text-slate-100">Дашборд</h1>
+                <p className="text-sm text-slate-500 mt-0.5">
+                    Загальна статистика та аналітика складу в реальному часі
                 </p>
             </div>
 
             {/* Лічильники */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <StatCard
                     label="Товарів у каталозі"
                     value={s.totalProducts}
                     icon={<Package size={20} />}
-                    accent="#6366f1"
+                    variant="indigo"
                 />
                 <StatCard
                     label="Одиниць на складі"
                     value={s.totalItemsCount.toLocaleString()}
                     icon={<Boxes size={20} />}
-                    accent="#2dd4bf"
+                    variant="teal"
                 />
                 <StatCard
                     label="Очікується прихід"
                     value={s.pendingInboundOrders}
                     icon={<ArrowDownToLine size={20} />}
-                    accent="#f59e0b"
+                    variant="amber"
                 />
                 <StatCard
                     label="Очікується відправка"
                     value={s.pendingOutboundOrders}
                     icon={<ArrowUpFromLine size={20} />}
-                    accent="#a78bfa"
+                    variant="purple"
                 />
                 <StatCard
                     label="Мало на складі"
                     value={s.lowStockAlerts}
                     icon={<AlertTriangle size={20} />}
-                    accent="#f87171"
+                    variant="rose"
                 />
             </div>
 
@@ -196,86 +199,112 @@ export default function DashboardPage() {
                 {/* ABC аналіз */}
                 <Section title="ABC аналіз категорій">
                     {abc.length === 0 ? (
-                        <p className="text-sm text-center py-8" style={{ color: '#475569' }}>Немає даних</p>
+                        <p className="text-sm text-center text-slate-500 py-16">Немає даних для аналізу</p>
                     ) : (
-                        <ResponsiveContainer width="100%" height={240}>
-                            <BarChart data={abc} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                                <XAxis
-                                    dataKey="categoryName"
-                                    tick={{ fill: '#475569', fontSize: 11 }}
-                                    axisLine={false}
-                                    tickLine={false}
-                                />
-                                <YAxis
-                                    tick={{ fill: '#475569', fontSize: 11 }}
-                                    axisLine={false}
-                                    tickLine={false}
-                                />
-                                <Tooltip content={<ChartTooltip />} />
-                                <Bar dataKey="totalQuantity" name="Кількість" radius={[4, 4, 0, 0]}>
-                                    {abc.map((entry, i) => (
-                                        <Cell key={i} fill={ABC_COLORS[entry.class] ?? '#6366f1'} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    )}
-                    {/* Легенда класів */}
-                    <div className="flex gap-4 mt-3">
-                        {Object.entries(ABC_COLORS).map(([cls, color]) => (
-                            <div key={cls} className="flex items-center gap-1.5">
-                                <div className="w-2.5 h-2.5 rounded-sm" style={{ background: color }} />
-                                <span className="text-xs" style={{ color: '#475569' }}>Клас {cls}</span>
+                        <div className="h-[260px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={abc} margin={{ top: 15, right: 10, left: -15, bottom: 5 }}>
+                                    <XAxis
+                                        dataKey="categoryName"
+                                        tick={{ fill: '#64748b', fontSize: 11 }}
+                                        axisLine={false}
+                                        tickLine={false}
+                                    />
+                                    <YAxis
+                                        tick={{ fill: '#64748b', fontSize: 11 }}
+                                        axisLine={false}
+                                        tickLine={false}
+                                        allowDecimals={false}
+                                    />
+                                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
+                                    <Bar dataKey="totalQuantity" name="Кількість" radius={[4, 4, 0, 0]} maxBarSize={40}>
+                                        {abc.map((entry, i) => (
+                                            <Cell key={i} fill={`url(#abcGlow-${entry.class})`} />
+                                        ))}
+                                    </Bar>
+                                    <defs>
+                                        <linearGradient id="abcGlow-A" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor="#818cf8" stopOpacity={1} />
+                                            <stop offset="100%" stopColor="#4f46e5" stopOpacity={0.6} />
+                                        </linearGradient>
+                                        <linearGradient id="abcGlow-B" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor="#2dd4bf" stopOpacity={1} />
+                                            <stop offset="100%" stopColor="#0d9488" stopOpacity={0.6} />
+                                        </linearGradient>
+                                        <linearGradient id="abcGlow-C" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor="#fbbf24" stopOpacity={1} />
+                                            <stop offset="100%" stopColor="#d97706" stopOpacity={0.6} />
+                                        </linearGradient>
+                                    </defs>
+                                </BarChart>
+                            </ResponsiveContainer>
+                            {/* Легенда класів */}
+                            <div className="flex gap-4 mt-2 pt-3 border-t border-white/[0.02]">
+                                {Object.entries(ABC_COLORS).map(([cls, color]) => (
+                                    <div key={cls} className="flex items-center gap-2">
+                                        <div className="w-2.5 h-2.5 rounded-sm shadow-sm" style={{ backgroundColor: color }} />
+                                        <span className="text-xs font-medium text-slate-400">Клас {cls}</span>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
+                        </div>
+                    )}
                 </Section>
 
-                {/* Заповненість складу */}
+                {/* Заповненість складу — Фікс обрізання графіка */}
                 <Section title="Заповненість складу">
                     {stats!.warehouseOccupancy.length === 0 ? (
-                        <p className="text-sm text-center py-8" style={{ color: '#475569' }}>Немає даних</p>
+                        <p className="text-sm text-center text-slate-500 py-16">Немає даних про заповненість</p>
                     ) : (
                         <>
-                            <ResponsiveContainer width="100%" height={200}>
-                                <PieChart>
-                                    <Pie
-                                        data={stats!.warehouseOccupancy}
-                                        dataKey="occupiedLocations"
-                                        nameKey="warehouseName"
-                                        cx="50%"
-                                        cy="50%"
-                                        outerRadius={80}
-                                        innerRadius={50}
-                                    >
-                                        {stats!.warehouseOccupancy.map((_, i) => (
-                                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip content={<ChartTooltip />} />
-                                    <Legend
-                                        formatter={(value) => (
-                                            <span style={{ color: '#94a3b8', fontSize: 12 }}>{value}</span>
-                                        )}
-                                    />
-                                </PieChart>
-                            </ResponsiveContainer>
+                            {/* Додано фіксовану висоту контейнера та чіткі внутрішні відступи (margin) */}
+                            <div className="h-[190px] w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+                                        <Pie
+                                            data={stats!.warehouseOccupancy}
+                                            dataKey="occupiedLocations"
+                                            nameKey="warehouseName"
+                                            cx="50%"
+                                            cy="50%"
+                                            outerRadius={68}
+                                            innerRadius={48}
+                                            paddingAngle={3}
+                                        >
+                                            {stats!.warehouseOccupancy.map((_, i) => (
+                                                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="transparent" />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip content={<ChartTooltip />} />
+                                        <Legend
+                                            verticalAlign="bottom"
+                                            height={32}
+                                            iconType="circle"
+                                            iconSize={6}
+                                            formatter={(value) => (
+                                                <span className="text-xs font-medium text-slate-400 ml-1">{value}</span>
+                                            )}
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+
                             {/* Прогрес бари */}
-                            <div className="space-y-3 mt-2">
+                            <div className="space-y-3.5 mt-4 pt-4 border-t border-white/[0.02]">
                                 {stats!.warehouseOccupancy.map((w, i) => (
-                                    <div key={i}>
-                                        <div className="flex justify-between text-xs mb-1">
-                                            <span style={{ color: '#94a3b8' }}>{w.warehouseName}</span>
-                                            <span style={{ color: '#475569' }}>
-                        {w.occupiedLocations}/{w.totalLocations} ({Math.round(w.occupancyPercentage)}%)
-                      </span>
+                                    <div key={i} className="group">
+                                        <div className="flex justify-between text-xs mb-1.5">
+                                            <span className="font-medium text-slate-300 group-hover:text-indigo-300 transition-colors">{w.warehouseName}</span>
+                                            <span className="text-slate-500 font-medium">
+                                                {w.occupiedLocations} <span className="text-slate-600">/</span> {w.totalLocations} ({Math.round(w.occupancyPercentage)}%)
+                                            </span>
                                         </div>
-                                        <div className="h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                                        <div className="h-2 rounded-full bg-white/[0.03] overflow-hidden border border-white/[0.02]">
                                             <div
-                                                className="h-1.5 rounded-full transition-all"
+                                                className="h-full rounded-full transition-all duration-500"
                                                 style={{
                                                     width: `${w.occupancyPercentage}%`,
-                                                    background: PIE_COLORS[i % PIE_COLORS.length],
+                                                    backgroundColor: PIE_COLORS[i % PIE_COLORS.length],
                                                 }}
                                             />
                                         </div>
@@ -289,45 +318,53 @@ export default function DashboardPage() {
 
             {/* Активність по годинах */}
             <Section title="Активність за останні 7 днів (по годинах)">
-                <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={fullHeatmap} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                        <XAxis
-                            dataKey="hour"
-                            tick={{ fill: '#475569', fontSize: 10 }}
-                            axisLine={false}
-                            tickLine={false}
-                            interval={1}
-                        />
-                        <YAxis
-                            tick={{ fill: '#475569', fontSize: 11 }}
-                            axisLine={false}
-                            tickLine={false}
-                        />
-                        <Tooltip content={<ChartTooltip />} />
-                        <Bar dataKey="операцій" fill="#6366f1" radius={[3, 3, 0, 0]} />
-                    </BarChart>
-                </ResponsiveContainer>
+                <div className="h-[210px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={fullHeatmap} margin={{ top: 15, right: 15, left: -15, bottom: 5 }}>
+                            <XAxis
+                                dataKey="hour"
+                                tick={{ fill: '#64748b', fontSize: 10 }}
+                                axisLine={false}
+                                tickLine={false}
+                                interval={1}
+                            />
+                            <YAxis
+                                tick={{ fill: '#64748b', fontSize: 11 }}
+                                axisLine={false}
+                                tickLine={false}
+                                allowDecimals={false}
+                            />
+                            <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.01)' }} />
+                            <Bar dataKey="операцій" fill="url(#indigoGlow)" radius={[3, 3, 0, 0]} maxBarSize={30} />
+                            <defs>
+                                <linearGradient id="indigoGlow" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#818cf8" stopOpacity={1} />
+                                    <stop offset="100%" stopColor="#4f46e5" stopOpacity={0.6} />
+                                </linearGradient>
+                            </defs>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
             </Section>
 
             {/* Alerts про закінчення терміну */}
             {stats!.expiryAlerts.length > 0 && (
                 <Section title="⚠️ Товари з терміном придатності менше 30 днів">
-                    <div className="space-y-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {stats!.expiryAlerts.map((alert, i) => (
                             <div
                                 key={i}
-                                className="flex items-center justify-between rounded-lg px-4 py-3"
-                                style={{ background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.15)' }}
+                                className="flex items-center justify-between rounded-lg px-4 py-3 bg-rose-500/[0.02] border border-rose-500/10 hover:bg-rose-500/[0.05] hover:border-rose-500/20 transition-all duration-200"
                             >
-                                <div>
-                                    <p className="text-sm font-medium" style={{ color: '#fca5a5' }}>{alert.productName}</p>
-                                    <p className="text-xs mt-0.5" style={{ color: '#475569' }}>Партія: {alert.batchNumber}</p>
+                                <div className="min-w-0 flex-1 pr-4">
+                                    <p className="text-sm font-semibold text-rose-300 truncate">{alert.productName}</p>
+                                    <p className="text-xs text-slate-500 truncate mt-0.5">Партія: <span className="text-slate-400 font-medium">{alert.batchNumber}</span></p>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-sm font-semibold" style={{ color: '#f87171' }}>
+                                <div className="text-right shrink-0">
+                                    <p className="text-sm font-bold text-rose-400">
                                         {alert.daysRemaining} дн.
                                     </p>
-                                    <p className="text-xs" style={{ color: '#475569' }}>
+                                    <p className="text-[11px] font-medium text-slate-500 mt-0.5">
                                         {new Date(alert.expirationDate).toLocaleDateString('uk-UA')}
                                     </p>
                                 </div>

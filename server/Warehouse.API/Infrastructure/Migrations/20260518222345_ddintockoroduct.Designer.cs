@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Warehouse.API.Infrastructure.Data;
@@ -11,9 +12,11 @@ using Warehouse.API.Infrastructure.Data;
 namespace Warehouse.API.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260518222345_ddintockoroduct")]
+    partial class ddintockoroduct
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -213,9 +216,6 @@ namespace Warehouse.API.Infrastructure.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("TenantId1")
-                        .HasColumnType("uuid");
-
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("boolean");
 
@@ -233,8 +233,6 @@ namespace Warehouse.API.Infrastructure.Migrations
                         .HasDatabaseName("UserNameIndex");
 
                     b.HasIndex("TenantId");
-
-                    b.HasIndex("TenantId1");
 
                     b.ToTable("Users", (string)null);
                 });
@@ -601,26 +599,10 @@ namespace Warehouse.API.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Address")
-                        .HasColumnType("text");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Email")
-                        .HasColumnType("text");
-
                     b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Phone")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("PlanExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PlanName")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -831,10 +813,6 @@ namespace Warehouse.API.Infrastructure.Migrations
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("Warehouse.API.Domain.Entities.Tenant", null)
-                        .WithMany("Users")
-                        .HasForeignKey("TenantId1");
 
                     b.Navigation("Tenant");
                 });
@@ -1051,11 +1029,6 @@ namespace Warehouse.API.Infrastructure.Migrations
             modelBuilder.Entity("Warehouse.API.Domain.Entities.ProductCategory", b =>
                 {
                     b.Navigation("Products");
-                });
-
-            modelBuilder.Entity("Warehouse.API.Domain.Entities.Tenant", b =>
-                {
-                    b.Navigation("Users");
                 });
 
             modelBuilder.Entity("Warehouse.API.Domain.Entities.Warehouse", b =>

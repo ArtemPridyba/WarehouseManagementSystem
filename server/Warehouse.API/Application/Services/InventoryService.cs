@@ -41,14 +41,18 @@ public class InventoryService : IInventoryService
     {
         return await _context.InventoryBalances
             .Include(b => b.Location)
+            .ThenInclude(l => l.Zone)
+            .ThenInclude(z => z.Warehouse)
             .Include(b => b.Batch)
             .Where(b => b.ProductId == productId && b.Quantity > 0)
             .Select(b => new {
-                LocationCode = b.Location.Code,
-                LocationId = b.LocationId,
+                LocationCode      = b.Location.Code,
+                LocationId        = b.LocationId,
+                ZoneName          = b.Location.Zone.Name,
+                WarehouseName     = b.Location.Zone.Warehouse.Name,
                 AvailableQuantity = b.Quantity,
-                BatchNumber = b.Batch != null ? b.Batch.BatchNumber : "No Batch",
-                ExpiryDate = b.Batch != null ? b.Batch.ExpirationDate : null
+                BatchNumber       = b.Batch != null ? b.Batch.BatchNumber : "No Batch",
+                ExpiryDate        = b.Batch != null ? b.Batch.ExpirationDate : (DateTime?)null
             })
             .AsNoTracking()
             .ToListAsync();

@@ -18,7 +18,6 @@ public class WorkOrdersController : ControllerBase
         _workOrderService = workOrderService;
     }
 
-    // Всі завдання (Admin бачить всі, Worker — тільки свої)
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] WorkOrderStatus? status = null)
     {
@@ -26,7 +25,6 @@ public class WorkOrdersController : ControllerBase
         return Ok(orders);
     }
 
-    // Мої завдання (для Worker)
     [HttpGet("my")]
     public async Task<IActionResult> GetMyTasks()
     {
@@ -56,7 +54,6 @@ public class WorkOrdersController : ControllerBase
         }
     }
 
-    // Оновити статус (Worker може виконати своє завдання)
     [HttpPatch("{id}/status")]
     public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateWorkOrderStatusRequest request)
     {
@@ -71,7 +68,6 @@ public class WorkOrdersController : ControllerBase
         }
     }
 
-    // Призначити виконавця (тільки Admin)
     [Authorize(Roles = "Admin,Manager")]
     [HttpPatch("{id}/assign")]
     public async Task<IActionResult> Assign(Guid id, [FromBody] AssignWorkOrderRequest request)
@@ -79,6 +75,21 @@ public class WorkOrdersController : ControllerBase
         try
         {
             var order = await _workOrderService.AssignAsync(id, request);
+            return Ok(order);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    // Взяти вільне завдання собі — доступно будь-якому авторизованому користувачу
+    [HttpPatch("{id}/take")]
+    public async Task<IActionResult> Take(Guid id)
+    {
+        try
+        {
+            var order = await _workOrderService.TakeAsync(id);
             return Ok(order);
         }
         catch (Exception ex)
@@ -101,11 +112,18 @@ public class WorkOrdersController : ControllerBase
             return BadRequest(ex.Message);
         }
     }
-    
+
     [HttpGet("notifications")]
     public async Task<IActionResult> GetNotifications()
     {
         var result = await _workOrderService.GetNotificationsAsync();
+        return Ok(result);
+    }
+
+    [HttpGet("paged")]
+    public async Task<IActionResult> GetPaged([FromQuery] GetWorkOrdersQuery query)
+    {
+        var result = await _workOrderService.GetPagedAsync(query);
         return Ok(result);
     }
 }

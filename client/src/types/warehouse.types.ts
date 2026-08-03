@@ -69,6 +69,8 @@ export interface StockItem {
 export interface ProductLocationItem {
     locationCode: string;
     locationId: string;
+    zoneName: string;
+    warehouseName: string;
     availableQuantity: number;
     batchNumber: string;
     expiryDate?: string;

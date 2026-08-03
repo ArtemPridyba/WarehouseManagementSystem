@@ -6,3 +6,4 @@ export * from './dashboard.types';
 export * from './workorder.types';
 export * from './common.types';
 export * from './transaction.types';
+export * from './tenant.types';
