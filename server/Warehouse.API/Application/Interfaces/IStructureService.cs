@@ -10,7 +10,7 @@ public interface IStructureService
     Task<WarehouseEntity?> GetWarehouseByIdAsync(Guid warehouseId);
     Task<WarehouseEntity> CreateWarehouseAsync(CreateWarehouseRequest request);
     Task<WarehouseEntity> UpdateWarehouseAsync(Guid id, CreateWarehouseRequest request);
-    Task<bool> DeleteWarehouseAsync(Guid id);
+    Task DeleteWarehouseAsync(Guid id);
     
     Task<IEnumerable<Zone>> GetZonesAsync(Guid warehouseId);
     Task<Zone?> GetZoneByIdAsync(Guid zoneId);

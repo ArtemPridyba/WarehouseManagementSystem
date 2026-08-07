@@ -17,11 +17,27 @@ public class StructureService : IStructureService
     public async Task<IEnumerable<WarehouseEntity>> GetWarehousesAsync() =>
         await _context.Warehouses.AsNoTracking().ToListAsync();
 
-    public async Task<WarehouseEntity?> GetWarehouseByIdAsync(Guid warehouseId) =>
-        await _context.Warehouses.FirstOrDefaultAsync(w => w.Id == warehouseId);
+    public async Task<WarehouseEntity?> GetWarehouseByIdAsync(Guid warehouseId)
+    {
+        var warehouse = await _context.Warehouses.FirstOrDefaultAsync(w => w.Id == warehouseId);
+
+        if (warehouse == null)
+        {
+            throw new KeyNotFoundException($"Склад з ID '{warehouseId}' не знайдено.");
+        }
+        
+        return warehouse;
+    }
+        
 
     public async Task<WarehouseEntity> CreateWarehouseAsync(CreateWarehouseRequest request)
     {
+        var nameExists = await _context.Warehouses.AnyAsync(w => w.Name == request.Name);
+        if (nameExists)
+        {
+            throw new InvalidOperationException($"Склад з назвою '{request.Name}' вже існує.");
+        }
+        
         var warehouse = new WarehouseEntity 
         { 
             Name = request.Name, 
@@ -29,30 +45,50 @@ public class StructureService : IStructureService
         };
         _context.Warehouses.Add(warehouse);
         await _context.SaveChangesAsync();
-        return warehouse;
+        
+        return warehouse;   
     }
     
     public async Task<WarehouseEntity> UpdateWarehouseAsync(Guid id, CreateWarehouseRequest request)
     {
         var warehouse = await _context.Warehouses.FirstOrDefaultAsync(w => w.Id == id);
-        if (warehouse == null) throw new Exception("Склад не знайдено");
+        if (warehouse == null)
+        {
+            throw new KeyNotFoundException($"Склад з ID '{id}' не знайдено.");
+        }
 
+        var nameConflict = 
+            await _context.Warehouses.AnyAsync(w => w.Name == request.Name && w.Address == request.Address);
+
+        if (nameConflict)
+        {
+            throw new InvalidOperationException($"Склад з назвою '{request.Name}' вже існує.");
+        }
         warehouse.Name = request.Name;
         warehouse.Address = request.Address;
+        
         await _context.SaveChangesAsync();
         return warehouse;
     }
 
-    public async Task<bool> DeleteWarehouseAsync(Guid id)
+    public async Task DeleteWarehouseAsync(Guid id)
     {
-        var warehouse = await _context.Warehouses.Include(w => w.Zones).FirstOrDefaultAsync(w => w.Id == id);
-        if (warehouse == null) return false;
+        var warehouse = await _context.Warehouses
+            .Include(w => w.Zones)
+            .FirstOrDefaultAsync(w => w.Id == id);
+        if (warehouse == null)
+        {
+            throw new KeyNotFoundException($"Склад з ID '{id}' не знайдено.");
+            
+        }
 
-        if (warehouse.Zones.Any()) throw new Exception("Неможливо видалити склад, у якому є зони");
+        if (warehouse.Zones.Any())
+        {
+            throw new InvalidOperationException($"Неможливо видалити склав в якому є зони");
+        }
 
         _context.Warehouses.Remove(warehouse);
         await _context.SaveChangesAsync();
-        return true;
     }
 
     // --- ZONES ---

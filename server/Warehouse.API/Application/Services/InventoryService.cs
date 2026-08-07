@@ -60,6 +60,12 @@ public class InventoryService : IInventoryService
     
     public async Task<bool> InternalTransferAsync(TransferRequest request)
     {
+        var targetLocationExists = await _context.Locations.AnyAsync(l => l.Id == request.ToLocationId);
+        if (!targetLocationExists)
+        {
+            throw new KeyNotFoundException($"Цільову локацію з ID '{request.ToLocationId}' не знайдено.");
+        }
+        
         using var transaction = await _context.Database.BeginTransactionAsync();
 
         try
@@ -69,13 +75,18 @@ public class InventoryService : IInventoryService
                                          b.ProductId == request.ProductId &&
                                          b.BatchId == request.BatchId);
 
-            if (sourceBalance == null || sourceBalance.Quantity < request.Quantity)
+            if (sourceBalance == null)
             {
-                throw new Exception("Недостатньо товару на вихідній локації");
+                throw new KeyNotFoundException("Товар з вказаною партією не знайдено на початковій локації.");
+            }
+            
+            if (sourceBalance.Quantity < request.Quantity)
+            {
+                throw new InvalidOperationException($"Недостатньо товару на вихідній локації. Доступно: {sourceBalance.Quantity}, запитано: {request.Quantity}.");
             }
             
             sourceBalance.Quantity -= request.Quantity;
-            if (sourceBalance.Quantity == 0)
+            if (sourceBalance.Quantity <= 0)
             {
                 _context.InventoryBalances.Remove(sourceBalance);
             }
@@ -128,6 +139,23 @@ public class InventoryService : IInventoryService
     
     public async Task<bool> AdjustStockAsync(AdjustmentRequest request)
     {
+        if (request.NewQuantity < 0)
+        {
+            throw new InvalidOperationException("Нова кількість залишку не може бути від'ємною.");
+        }
+        
+        var locationExists = await _context.Locations.AnyAsync(l => l.Id == request.LocationId);
+        if (!locationExists)
+        {
+            throw new KeyNotFoundException($"Локацію з ID '{request.LocationId}' не знайдено");
+        }
+        
+        var productExists = await _context.Products.AnyAsync(p => p.Id == request.ProductId);
+        if (!productExists)
+        {
+            throw new KeyNotFoundException($"Товар з ID '{request.ProductId}'не знайдено");
+        }
+        
         using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
@@ -206,7 +234,7 @@ public class InventoryService : IInventoryService
             (t.FromLocation != null && t.FromLocation.Zone.WarehouseId == query.WarehouseId.Value) ||
             (t.ToLocation   != null && t.ToLocation.Zone.WarehouseId   == query.WarehouseId.Value));
 
-    // Worker бачить тільки свої транзакції
+    
     var roles = await GetCurrentUserRolesAsync();
     if (roles.Contains("Worker"))
     {
@@ -245,10 +273,14 @@ private async Task<IList<string>> GetCurrentUserRolesAsync()
 
 public async Task<StockCountResultDto> ProcessStockCountAsync(StockCountRequest request)
 {
+    if (request.ActualQuantity < 0)
+    {
+        throw new InvalidOperationException("Фактична кількість під час переобліку не може бути від'ємною.");
+    }
+    
     using var transaction = await _context.Database.BeginTransactionAsync();
     try
     {
-        // Поточний залишок в системі
         var balance = await _context.InventoryBalances
             .Include(b => b.Product)
             .Include(b => b.Location)
@@ -266,13 +298,11 @@ public async Task<StockCountResultDto> ProcessStockCountAsync(StockCountRequest 
         var locationCode = balance?.Location?.Code
             ?? (await _context.Locations.FindAsync(request.LocationId))?.Code
             ?? "";
-
-        // Якщо є розбіжність — коригуємо
+        
         if (delta != 0)
         {
             if (balance == null && request.ActualQuantity > 0)
             {
-                // Товару не було — створюємо баланс
                 balance = new InventoryBalance
                 {
                     ProductId  = request.ProductId,
@@ -289,7 +319,6 @@ public async Task<StockCountResultDto> ProcessStockCountAsync(StockCountRequest 
                     _context.InventoryBalances.Remove(balance);
             }
 
-            // Транзакція коригування
             var note = string.IsNullOrEmpty(request.Note)
                 ? $"Stock Count: розбіжність {(delta > 0 ? "+" : "")}{delta}"
                 : $"Stock Count: {request.Note}";

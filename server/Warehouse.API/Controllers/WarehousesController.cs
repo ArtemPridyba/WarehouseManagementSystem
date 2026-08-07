@@ -12,30 +12,41 @@ public class WarehousesController : ControllerBase
     public WarehousesController(IStructureService structureService) => _structureService = structureService;
 
     [HttpGet]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll() => Ok(await _structureService.GetWarehousesAsync());
 
     [HttpGet("{id}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id) 
     {
         var warehouse = await _structureService.GetWarehouseByIdAsync(id);
-        return warehouse == null ? NotFound() : Ok(warehouse);
+        return Ok(warehouse);
     }
 
     [Authorize(Roles = "Admin,Manager")]
     [HttpPost]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create([FromBody] CreateWarehouseRequest request) => 
         Ok(await _structureService.CreateWarehouseAsync(request));
 
     [Authorize(Roles = "Admin,Manager")]
     [HttpPut("{id}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Update(Guid id, [FromBody] CreateWarehouseRequest request) => 
         Ok(await _structureService.UpdateWarehouseAsync(id, request));
 
     [Authorize(Roles = "Admin,Manager")]
     [HttpDelete("{id}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid id) 
     {
-        try { return await _structureService.DeleteWarehouseAsync(id) ? NoContent() : NotFound(); }
-        catch (Exception ex) { return BadRequest(ex.Message); }
+        await _structureService.DeleteWarehouseAsync(id);
+        return NoContent();
     }
 }

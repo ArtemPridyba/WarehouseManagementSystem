@@ -18,6 +18,8 @@ public class InventoryController : ControllerBase
     }
 
     [HttpGet("stock/{warehouseId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetStock(Guid warehouseId)
     {
         var stock = await _inventoryService.GetWarehouseStockAsync(warehouseId);
@@ -39,49 +41,35 @@ public class InventoryController : ControllerBase
     }
 
     [HttpGet("product-locations/{productId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProductLocations(Guid productId)
     {
-        try
-        {
             var locations = await _inventoryService.GetAvailableLocationsForProductAsync(productId);
             return Ok(locations);
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(ex.Message);
-        }
     }
 
     [HttpPost("transfer")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails),StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Transfer([FromBody] TransferRequest request)
     {
-        try
-        {
             await _inventoryService.InternalTransferAsync(request);
             return Ok(new { Message = "Товар успішно переміщено" });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(ex.Message);
-        }
     }
 
     [Authorize(Roles = "Admin,Manager")]
     [HttpPost("adjust")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Adjust([FromBody] AdjustmentRequest request)
     {
-        try
-        {
             await _inventoryService.AdjustStockAsync(request);
             return Ok(new { Message = "Залишки успішно скориговано" });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(ex.Message);
-        }
     }
     
     [HttpGet("transactions")]
+    [ProducesResponseType(typeof(IEnumerable<InventoryTransactionDto>),StatusCodes.Status200OK)]
     public async Task<IActionResult> GetTransactions([FromQuery] GetTransactionsQuery query)
     {
         var result = await _inventoryService.GetTransactionsAsync(query);
@@ -89,16 +77,11 @@ public class InventoryController : ControllerBase
     }
     
     [HttpPost("stock-count")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> StockCount([FromBody] StockCountRequest request)
     {
-        try
-        {
             var result = await _inventoryService.ProcessStockCountAsync(request);
             return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(ex.Message);
-        }
     }
 }
